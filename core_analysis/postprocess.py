@@ -1,10 +1,4 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Wed Feb 15 18:06:54 2023
-
-@author: silva
-"""
 
 import cv2
 import numpy as np
@@ -111,7 +105,7 @@ class predict_tiles:
         del results
 
     def merge(self):
-        # reserve memory
+        # Preallocate memory.
         grid = np.zeros((1, self.y_max, self.x_max, self.n_classes))
 
         n = 0
@@ -203,6 +197,5 @@ class predict_tiles:
 
         if self.add_padding:
             return grid[0, self.dim[1] : -self.dim[1], self.dim[0] : -self.dim[0], :]
-
         else:
             return grid[0]
