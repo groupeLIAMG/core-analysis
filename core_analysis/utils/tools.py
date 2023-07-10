@@ -1,14 +1,7 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Wed Feb 15 17:28:22 2023
-
-@author: silva
-"""
 
 import numpy as np
-import matplotlib.pyplot as plt
-import cv2
+from scipy.interpolate import griddata
 
 
 def normalize(x, lim=255.0):
@@ -32,6 +25,17 @@ def adjust_rgb(img, perc_init=5, perc_final=95, nchannels=3):
         raise ValueError(f"The shape should be (M, N, {nchannels}).")
 
     return adjusted_img
+
+
+def min_dist(x_n, y_n, pairs):
+    distances = [999999.0]
+    if len(pairs) > 0:
+        distances = []
+        for pair in pairs:
+            x_f, y_f = pair
+            distances.append(np.sqrt(np.power(x_n - x_f, 2) + np.power(y_n - y_f, 2)))
+
+    return np.min(distances)
 
 
 def hillshade(array, azimuth, angle_altitude):
@@ -69,7 +73,7 @@ def standardize_data(grid, data_format="channels_last"):
     return std_grid
 
 
-def undersample(image, mask, undersample_by):
+def undersample(image, mask=None, undersample_by=2):
     yy = np.arange(0, image.shape[0], undersample_by)
     xx = np.arange(0, image.shape[1], undersample_by)
 
@@ -78,10 +82,44 @@ def undersample(image, mask, undersample_by):
     ny = idy.shape[0]
     nx = idy.shape[1]
 
-    resampled_image = image[idy.ravel(), idx.ravel(), :].reshape((ny, nx, 3))
-    # resampled_mask = mask[idy.ravel(), idx.ravel(), :].reshape((ny, nx, mask.shape[-1]))
+    image = image[idy.ravel(), idx.ravel(), :]
+    image = image.reshape((ny, nx, 3))
 
-    return resampled_image
+    if mask is not None:
+        mask = mask[idy.ravel(), idx.ravel(), :]
+        mask = mask.reshape((ny, nx, mask.shape[-1]))
+
+    return image, mask
+
+
+def upsample(image, original_image, result):
+    y0 = np.arange(image.shape[0])
+    x0 = np.arange(image.shape[1])
+
+    x0, y0 = np.meshgrid(x0, y0)
+
+    y = np.linspace(y0.min(), y0.max(), original_image.shape[0])
+    x = np.linspace(x0.min(), x0.max(), original_image.shape[1])
+
+    x, y = np.meshgrid(x, y)
+
+    interp_result = griddata(
+        (x0.ravel(), y0.ravel()),
+        result[:, :, 0].ravel(),
+        (x, y),
+        method="nearest",
+    )
+
+    return interp_result
+
+
+def return_zeroed(mask, crf_mask):
+    ny, nx, nz = mask.shape
+    for z in range(nz):
+        summ = np.sum(mask[:, :, z])
+        if summ == 0:
+            crf_mask[:, :, z] = 0.0
+    return crf_mask
 
 
 class data_augmentation:
