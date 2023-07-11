@@ -11,15 +11,7 @@ from tqdm.notebook import tqdm
 
 from core_analysis import postprocess
 from core_analysis.architecture import dense_crf
-from core_analysis.utils.tools import undersample, upsample, return_zeroed, min_dist
-
-
-def get_path(data, img_id):
-    for dict_ in data["images"]:
-        if dict_["id"] == img_id:
-            file_name = dict_["file_name"]
-
-    return file_name
+from core_analysis.utils.transform import undersample, upsample, return_zeroed, min_dist
 
 
 def get_image(coco, image_id, cat_ids, folder=""):

@@ -114,7 +114,7 @@ def upsample(image, original_image, result):
 
 
 def return_zeroed(mask, crf_mask):
-    ny, nx, nz = mask.shape
+    _, _, nz = mask.shape
     for z in range(nz):
         summ = np.sum(mask[:, :, z])
         if summ == 0:
