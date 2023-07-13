@@ -10,7 +10,7 @@ import segmentation_models as sm
 from PIL import Image, ImageOps
 
 from core_analysis.utils.constants import BATCH_SIZE, BACKBONE, IMAGE_DIR
-from core_analysis.utils.transform import data_augmentation, undersample
+from core_analysis.utils.transform import augment, undersample
 from core_analysis.utils.visualize import plot_inputs
 from core_analysis.preprocess import preprocess_batches, preprocess_input
 
@@ -38,6 +38,7 @@ def prepare_inputs(do_augment=False):
         class_idx = np.where(y_train == i)[0]
         indexes.append(np.random.choice(class_idx, size=n_samples, replace=False))
     indexes = np.concatenate(indexes)
+    np.random.shuffle(indexes)
 
     X_train, Y_train = X_train[indexes], Y_train[indexes]
 
@@ -54,8 +55,7 @@ def prepare_inputs(do_augment=False):
     X_test = preprocess_input(X_test)
 
     if do_augment:
-        augdata = data_augmentation(X_train, Y_train)
-        X_train, Y_train = augdata.rotation(nrot=[0, 2], perc=1.0)
+        X_train, Y_train = augment(X_train, Y_train)
 
     return X_train, Y_train, X_test, Y_test
 

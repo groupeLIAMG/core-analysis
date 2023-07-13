@@ -2,6 +2,13 @@
 
 import numpy as np
 from scipy.interpolate import griddata
+from imgaug.augmenters import (
+    Sequential,
+    Fliplr,
+    Flipud,
+    Rot90,
+    AdditiveGaussianNoise as Noise,
+)
 
 
 def normalize(x, lim=255.0):
@@ -122,37 +129,11 @@ def return_zeroed(mask, crf_mask):
     return crf_mask
 
 
-class data_augmentation:
-    def __init__(self, X, Y):
-        self.X = X
-        self.Y = Y
-        self.n = X.shape[0]
-
-    def rotation(self, nrot=[0, 1, 2, 3], perc=1.0):
-        from numpy import rot90
-
-        Xaug = []
-        Yaug = []
-
-        for n in nrot:
-            Xaug.append(np.rot90(self.X, n, axes=(1, 2)))
-            Yaug.append(np.rot90(self.Y, n, axes=(1, 2)))
-
-        n_generated_samples = int(self.X.shape[0] + perc * self.X.shape[0])
-        Xaug = np.concatenate(Xaug)[:n_generated_samples]
-        Yaug = np.concatenate(Yaug)[:n_generated_samples]
-        size = Xaug.shape[0]
-
-        shuffle = np.random.choice(
-            np.arange(0, size, 1, dtype=np.int16), size=size, replace=False
-        )
-
-        self.X = Xaug[shuffle]
-        self.Y = Yaug[shuffle]
-
-        return self.X, self.Y
-
-    def noise(self, var=0.05):
-        self.X = self.X + np.random.normal(np.mean(self.X), var, size=self.X.shape)
-
-        return self.X
+augment = Sequential(
+    [
+        Fliplr(p=0.5),
+        Flipud(p=0.5),
+        # Rot90(k=(0, 1, 2, 3)),
+        # Noise(scale=(0.0, 0.05)),
+    ]
+)
