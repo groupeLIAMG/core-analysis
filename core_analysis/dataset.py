@@ -6,16 +6,15 @@ import pickle as pkl
 
 import cv2
 import numpy as np
-import segmentation_models as sm
 from PIL import Image, ImageOps
 
-from core_analysis.utils.constants import BATCH_SIZE, BACKBONE, IMAGE_DIR
+from core_analysis.utils.constants import BATCH_SIZE, IMAGE_DIR
 from core_analysis.utils.transform import augment, undersample
 from core_analysis.utils.visualize import plot_inputs
 from core_analysis.preprocess import preprocess_batches, preprocess_input
 
 
-def prepare_inputs(do_augment=False):
+def prepare_inputs(do_augment=False, do_plot=False):
     with open(
         join("data", "dataset", "dataset_forages_128x128_20230705.pickle"),
         "rb",
@@ -48,14 +47,17 @@ def prepare_inputs(do_augment=False):
             Y_train[i : i + BATCH_SIZE],
         ) = preprocess_batches(X_train[i : i + BATCH_SIZE], Y_train[i : i + BATCH_SIZE])
 
-    plot_inputs(X_train, Y_train, qty=5)
+    if do_plot:
+        plot_inputs(X_train, Y_train, qty=5)
 
-    preprocess_input = sm.get_preprocessing(BACKBONE)
     X_train = preprocess_input(X_train)
     X_test = preprocess_input(X_test)
 
     if do_augment:
-        X_train, Y_train = augment(X_train, Y_train)
+        X_train, Y_train = augment(
+            images=X_train,
+            heatmaps=Y_train.astype(np.float32),
+        )
 
     return X_train, Y_train, X_test, Y_test
 

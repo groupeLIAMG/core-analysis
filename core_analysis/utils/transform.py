@@ -6,8 +6,8 @@ from imgaug.augmenters import (
     Sequential,
     Fliplr,
     Flipud,
-    Rot90,
-    AdditiveGaussianNoise as Noise,
+    # Rot90,
+    # AdditiveGaussianNoise as Noise,
 )
 
 

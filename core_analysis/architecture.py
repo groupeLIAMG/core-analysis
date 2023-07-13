@@ -1,5 +1,8 @@
+from os.path import join
+
 import numpy as np
 import tensorflow as tf
+from keras import callbacks
 from keras import backend as K
 import pydensecrf.densecrf as dcrf
 from pydensecrf.utils import (
@@ -7,6 +10,75 @@ from pydensecrf.utils import (
     create_pairwise_bilateral,
     unary_from_softmax,
 )
+import segmentation_models as sm
+
+from core_analysis.postprocess import predict_tiles
+from core_analysis.utils.constants import (
+    CHECKPOINT_DIR,
+    DIM,
+    N_CLASSES,
+    LR,
+    TODAY,
+)
+
+
+class Model:
+    BACKBONE = "efficientnetb7"
+    BATCH_SIZE = 16
+
+    def __init__(self, weights_filename=None, args=None):
+        if weights_filename is not None:
+            self.model = tf.keras.models.load_model(
+                join(CHECKPOINT_DIR, args.weights),
+                compile=False,
+            )
+        else:
+            self.model = sm.Linknet(
+                self.BACKBONE,
+                classes=N_CLASSES,
+                activation="softmax",
+                encoder_weights="imagenet",
+                encoder_freeze=False,
+            )
+
+        loss = masked_loss(DIM, ths=0.5, hold_out=0.1)
+        optimizer = tf.keras.optimizers.Adam(learning_rate=LR)
+        self.model.compile(
+            optimizer=optimizer,
+            loss=loss.contrastive_loss,
+            metrics=["acc"],
+        )
+
+    def train(self, X_train, Y_train, X_test, Y_test):
+        checkpoint_filename = f"linknet_{self.BACKBONE}_weights_{TODAY}.h5"
+        checkpointer = callbacks.ModelCheckpoint(
+            filepath=join(CHECKPOINT_DIR, checkpoint_filename),
+            monitor="loss",
+            verbose=1,
+            save_best_only=True,
+            mode="min",
+        )
+        early_stopping = tf.keras.callbacks.EarlyStopping(
+            monitor="loss",
+            min_delta=10e-4,
+            patience=50,
+        )
+        history = self.model.fit(
+            X_train,
+            Y_train,
+            batch_size=self.BATCH_SIZE,
+            validation_data=(X_test, Y_test),
+            callbacks=[checkpointer, early_stopping],
+            epochs=250,
+        )
+        return history
+
+    def test(self, images):
+        pred_tile = predict_tiles(self.model, merge_func=np.max, reflect=True)
+        pred_tile.create_batches(images, DIM, step=int(DIM[0]), n_classes=N_CLASSES)
+        pred_tile.predict(batches_num=1500, coords_channels=False)
+        results = pred_tile.merge()
+        return results
 
 
 def dense_crf(image, final_probabilities, gw=11, bw=3, n_iterations=5):

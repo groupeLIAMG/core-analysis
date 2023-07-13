@@ -8,10 +8,13 @@ from numpy.random import choice
 from PIL import Image, ImageOps
 from scipy.stats import mode
 from tqdm.notebook import tqdm
+import segmentation_models as sm
 
 from core_analysis import postprocess
-from core_analysis.architecture import dense_crf
+from core_analysis.architecture import Model, dense_crf
 from core_analysis.utils.transform import undersample, upsample, return_zeroed, min_dist
+
+preprocess_input = sm.get_preprocessing(Model.BACKBONE)
 
 
 def get_image(coco, image_id, cat_ids, folder=""):
