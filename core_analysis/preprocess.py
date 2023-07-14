@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from os.path import join
-
+from sys import stdout
 import cv2
 import numpy as np
 from numpy.random import choice
@@ -23,7 +23,7 @@ def get_path(data, img_id):
 
 
 def get_image(coco, image_id, cat_ids, folder=""):
-    # Get all fracture annotations for a given image.
+    # Get all annotations for a given image.
 
     mask_grid = []
     annotations = []
@@ -56,91 +56,18 @@ def get_image(coco, image_id, cat_ids, folder=""):
     return image, mask_grid, annotations
 
 
-def generate_batches(
-    image, mask, dim, patch_num, norm=True, clip_mask=False, min_dist_to_sample=0
-):
-    """
-    image - input array data
-    mask - labelled array data
-    dim - 3D-dimensions
-    patch_num - number of samples
-    norm - if True normalize RGB images
-    clip_mask - uses mask to limit central-point selection
-    """
-
-    # Select only labelled pixels.
-    size = int(patch_num)
-    # Create grids to store values.
-    X = np.zeros((size, *dim))
-    Ym = np.zeros((size, dim[0], dim[1], mask.shape[-1]))
-    y = []
-
-    pairs = []
-    # Select pairs at random.
-    idy, idx = np.where(mask > 0)[:2]
-
-    # Use mask information to limit point selection.
-    if clip_mask:
-        ny, nx = mask.shape
-        idy = idy[(idy > dim[0] // 2) & (idy < ny - dim[0] // 2)]
-        idx = idx[(idx > dim[1] // 2) & (idx < nx - dim[1] // 2)]
-
-    elems = np.arange(0, mask[mask > 0].shape[0], 1, dtype=int)
-
-    i = 0
-    iteration = 0
-    while i < size:
-        # Create batches.
-        e = choice(elems, size=1, replace=False)
-        # Create subset.
-        iy, ix = int(idy[e]), int(idx[e])
-
-        # Submask.
-        msk = mask[
-            iy - dim[0] // 2 : iy + dim[0] // 2, ix - dim[1] // 2 : ix + dim[1] // 2
-        ]
-
-        iteration += 1
-
-        # Check pc and if y-position was repeated.
-        if min_dist(ix, iy, pairs) >= min_dist_to_sample:
-            img = image[
-                iy - dim[0] // 2 : iy + dim[0] // 2,
-                ix - dim[1] // 2 : ix + dim[1] // 2,
-                :,
-            ]
-            dimm = img.shape
-
-            if dimm == dim:
-                X[i] = img
-                Ym[i, :, :, :] = msk
-                ny, nx, nz = msk.shape
-                summ = np.sum(msk.reshape((ny * nx, nz)), 0)
-                y += [np.argmax(summ)]
-                pairs.append((ix, iy))
-                i += 1
-            else:
-                pass
-
-        if iteration > 100:
-            # Force stop.
-            break
-
-    if norm:
-        X /= 255.0
-
-    return X[:i], Ym[:i], y[:i]
-
-
 def preprocess_batches(X, Y, fill_with_local_mean=False, pred_model=True):
+    
     n = 0
     for im_i, m_i in tqdm(zip(X, Y)):
         fill_mean = np.mean(mode(im_i, keepdims=True)[0])
-        idy, idx, _ = np.where(im_i != fill_mean)
+        idy, idx = np.where(im_i != fill_mean)[:2]
         local_mean = np.mean(im_i[idy, idx])
         iy, ix, _ = np.where(im_i == fill_mean)
+        # fill background with the local mean
         if fill_with_local_mean:
             im_i = np.where(im_i == fill_mean, local_mean, im_i)
+        # fill the background with zeros
         else:
             im_i = np.where(im_i == fill_mean, 0.0, im_i)
 
@@ -163,9 +90,7 @@ def preprocess_batches(X, Y, fill_with_local_mean=False, pred_model=True):
 
 def unbox(model, original_image, dim, batches_num=1000, ths=0.6):
     image, _ = undersample(original_image, mask=None, undersample_by=5)
-    image = np.float32(
-        cv2.bilateralFilter(np.float32(image), d=15, sigmaColor=55, sigmaSpace=35)
-    )
+    image = cv2.bilateralFilter(np.float32(image), d=15, sigmaColor=55, sigmaSpace=35)
     pred_tile = postprocess.predict_tiles(model, merge_func=np.max, reflect=True)
     pred_tile.create_batches(image, (dim[0], dim[1], 3), step=int(dim[0]), n_classes=1)
     pred_tile.predict(batches_num=batches_num, coords_channels=False)
@@ -177,3 +102,113 @@ def unbox(model, original_image, dim, batches_num=1000, ths=0.6):
     original_image[idy, idx] = np.nanmean(image)
 
     return original_image
+
+class Gen_datasets:
+    def __init__(self, coco_data, image_ids, use_ids, dim, n_samples, undersample_by=[1, 2]):
+        self.coco_data = coco_data
+        self.image_ids = image_ids
+        self.use_ids = use_ids
+        self.dim = dim
+        self.n_samples = n_samples
+        self.undersample_by = undersample_by
+        self.X = []
+        self.masks = []
+        self.y = []
+        
+    def patchify(self, image, mask, dim, patch_num, norm=True, min_dist_to_sample=0, max_it=1e4):
+        
+        '''
+        image: input image
+        mask: input mask
+        dim: tuple of dimensions
+        patch_num: number of patches
+        norm: if True, normalize
+        clip_mask - uses mask to limit central-point selection
+        perc - minimal percentage of pixels with class == 1.
+        '''
+
+        # select only labelled pixels
+        size = int(patch_num) 
+        # create grids to store values
+        X = np.zeros((size, *dim))
+        Ym = np.zeros((size, dim[0], dim[1], mask.shape[-1]))
+        y = []
+        
+        # count images
+        i = 0
+
+        pairs = []
+        # select pairs at random
+        idy, idx = np.where(mask > 0)[:2]
+        elems = np.arange(0, mask[mask > 0].shape[0], 1, dtype=int)
+
+        count = 0 
+        iteration = 0
+        while count < size:
+
+            # create batches
+            e = np.random.choice(elems, size=1, replace=False)
+            # create subset
+            iy, ix = int(idy[e]), int(idx[e])
+            # submask
+            msk = mask[iy-dim[0]//2:iy+dim[0]//2, ix-dim[1]//2:ix+dim[1]//2]
+
+            iteration += 1
+            # check pc and if y-position was repeated
+            if min_dist(ix, iy, pairs) >= min_dist_to_sample:
+                img = image[iy-dim[0]//2:iy+dim[0]//2, ix-dim[1]//2:ix+dim[1]//2, :]
+                dimm = img.shape
+
+                if(dimm == dim):
+                    X[i] = img
+                    Ym[i, :, :, :] = msk
+                    ny, nx, nz = msk.shape
+                    summ = np.sum(msk.reshape((ny*nx, nz)), 0)
+                    y += [np.argmax(summ)] 
+                    pairs.append((ix, iy))
+                    count += 1
+                    i += 1
+
+            # to avoid infinity loop
+            if iteration > max_it:
+                break
+
+        if norm:
+            X/=255.
+
+        return X[:i], Ym[:i], y[:i]
+    
+    
+    def generate_batches(self, n_classes=3):
+        
+        # counter
+        self.image_ids = self.image_ids*10 # extend the number of times an image will be opened
+        counts = np.unique(np.arange(n_classes), return_counts=True)[1]
+        
+        iteration = 0
+        while (counts.min() < self.n_samples):
+    
+            m = np.min(counts)
+            stdout.write(f"\r iteration: {iteration} / img-id {self.image_ids[iteration]} /{m*100/self.n_samples:.2f}%")
+
+             # ==================  generate and store batches =================
+            us = np.random.choice(self.undersample_by)
+            image, mask, anns = get_image(self.coco_data, self.image_ids[iteration], self.use_ids)
+            image, mask = undersample(image, mask, undersample_by=us)
+
+            Xi, mi, yi  = self.patchify(image, mask, self.dim, patch_num=len(anns), norm=False, min_dist_to_sample=self.dim[0]//10)
+            # append
+            self.X.append(Xi)
+            self.masks.append(mi)
+            self.y.append(yi)
+            counts = np.unique(np.concatenate(self.y), return_counts=True)[1]
+            iteration += 1
+            
+        # concat data    
+        X = np.concatenate(self.X, axis=0)
+        m = np.concatenate(self.masks, axis=0)
+        y = np.concatenate(self.y)
+        output = (X, m, y)
+        
+        return output
+    
