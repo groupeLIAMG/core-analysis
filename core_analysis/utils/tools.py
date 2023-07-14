@@ -38,20 +38,6 @@ def min_dist(x_n, y_n, pairs):
     return np.min(distances)
 
 
-def hillshade(array, azimuth, angle_altitude):
-    x, y = np.gradient(array)
-    slope = np.pi / 2.0 - np.arctan(np.sqrt(x * x + y * y))
-    aspect = np.arctan2(-x, y)
-    azimuthrad = azimuth * np.pi / 180.0
-    altituderad = angle_altitude * np.pi / 180.0
-
-    shaded = np.sin(altituderad) * np.sin(slope) + np.cos(altituderad) * np.cos(
-        slope
-    ) * np.cos(azimuthrad - aspect)
-    hillshade_array = 255 * (shaded + 1) / 2
-
-    return hillshade_array
-
 
 def standardize_data(grid, data_format="channels_last"):
     dim = grid.shape
