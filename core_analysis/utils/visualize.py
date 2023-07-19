@@ -6,9 +6,8 @@ import numpy as np
 from matplotlib import patches
 from matplotlib import pyplot as plt
 
-from core_analysis.preprocess import get_image
 from core_analysis.utils.transform import adjust_rgb
-from core_analysis.utils.constants import TODAY, IMAGE_DIR, PLOT_DIR
+from core_analysis.utils.constants import TODAY, PLOT_DIR
 
 
 def plot_masks(images, masks, cat_names):
@@ -28,15 +27,13 @@ def plot_masks(images, masks, cat_names):
         )
 
 
-def plot_image_and_mask(coco, cat_ids, image_ids):
-    img_id = np.random.choice(image_ids, size=1)[0]
-    image, mask, anns = get_image(coco, img_id, cat_ids=cat_ids, folder=IMAGE_DIR)
-    print("Image ID:", img_id)
+def plot_image_and_mask(image):
+    print("Image ID:", image.id)
 
     _, axs = plt.subplots(1, 2, figsize=(20, 10))
 
     # Draw boxes and add label to each box.
-    for ann in anns:
+    for ann in image.annotations:
         box = ann["bbox"]
         bb = patches.Rectangle(
             (box[0], box[1]),
@@ -53,15 +50,13 @@ def plot_image_and_mask(coco, cat_ids, image_ids):
     axs[0].axis("off")
     axs[0].set_title("Image", fontsize=12)
 
-    axs[1].imshow(np.argmax(mask, -1), cmap="Dark2")
+    axs[1].imshow(np.argmax(image.masks[..., 2], -1), cmap="Dark2")
     axs[1].set_aspect(1)
     axs[1].axis("off")
     axs[1].set_title("Masque", fontsize=12)
 
     plt.savefig(join(PLOT_DIR, "image_masque.png"), dpi=300, bbox_inches="tight")
     plt.show()
-
-    return image, mask
 
 
 def plot_image_with_mask(image, mask):
@@ -119,6 +114,7 @@ def plot_test_results(images, results):
     x, y = np.meshgrid(x, y)
 
     for c in range(results.shape[-1]):
+        image = image.without_background()
         fig, ax = plt.subplots(figsize=(15, 15))
         ax.imshow(adjust_rgb(images, 5, 99), zorder=0)
         ax.pcolormesh(
