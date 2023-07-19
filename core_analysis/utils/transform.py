@@ -4,6 +4,7 @@ import numpy as np
 from scipy.interpolate import griddata
 from imgaug.augmenters import (
     Sequential,
+    Affine,
     Fliplr,
     Flipud,
     # Rot90,
@@ -71,6 +72,7 @@ def upsample(arr, dest_shape):
 
 augment = Sequential(
     [
+        Affine(scale=[0.5, 1.0, 2.0]),
         Fliplr(p=0.5),
         Flipud(p=0.5),
         # Rot90(k=(0, 1, 2, 3)),
