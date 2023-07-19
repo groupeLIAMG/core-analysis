@@ -1,11 +1,9 @@
 # -*- coding: utf-8 -*-
 
-from os import listdir
 from os.path import join
 from copy import copy
 from json import dump
 
-import cv2
 import numpy as np
 from numpy.random import choice, permutation, seed
 from PIL.Image import open
@@ -31,11 +29,10 @@ class Dataset(COCO):
     def __init__(self, label_path):
         super().__init__(label_path)
         self.imgs = {
-            img_id: Image(info["path"], self, info)
-            for img_id, info in self.imgs.items()
+            img_id: Image(img_id, self, info) for img_id, info in self.imgs.items()
         }
 
-        plot_inputs(self.imgs.values())
+        plot_inputs(list(self.imgs.values()))
 
     def subset(self, mode):
         subset = copy(self)
@@ -104,15 +101,20 @@ class Dataset(COCO):
 
 
 class Image(np.ndarray):
-    def __init__(self, path, dataset, info=None):
+    def __new__(cls, path, dataset, info=None):
+        data = cls._open(None, path, dataset)  # Optionally, `path` can be an image ID.
+        self = np.asarray(data).view(cls)
         self.dataset = dataset
-        self.open(path)
         self.background = self.detect_background()
         self.masks, self.annotations = self.get_annotations(dataset)
         self.refine_masks()
-        self.__init__(self.meta)
         self.info = info
-        self.saved = False
+        return self
+
+    @classmethod
+    def open(cls, path, dataset, info=None):
+        # Alias for `__new__`.
+        return cls(path, dataset, info)
 
     def __getitem__(self, idx):
         item = copy(super().__getitem__(idx))
@@ -123,14 +125,16 @@ class Image(np.ndarray):
     def __repr__(self):
         return str(self.info)
 
-    def open(self, path):
+    def _open(self, path, dataset=None):
+        if dataset is None:
+            dataset = self.dataset
         if isinstance(path, int):  # Path is actually a COCO image ID.
-            file_name = self.dataset.imgs[path]["file_name"]
+            file_name = dataset.imgs[path]["file_name"]
             subfolder = file_name.split(" ")[0]
             path = join(IMAGE_DIR, subfolder, file_name)
-        self.meta = open(path)
-        self.meta = exif_transpose(self.meta)
-        return self
+        data = open(path)
+        data = exif_transpose(data)
+        return data
 
     detect_background = unbox
 
