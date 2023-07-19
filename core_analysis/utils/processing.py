@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 
 from os import makedirs
-from os.path import split, exists, splitext
+from os.path import join, split, exists, splitext
 
 import numpy as np
 import h5py
+
+from core_analysis.utils.constants import DATA_DIR
 
 
 class stored_property(property):
@@ -20,7 +22,7 @@ class saved_array_property(stored_property):
         self._fget = fget
         super().__init__(fget=self.fget)
         self.filename = f"{fget.__name__}.h5"
-        self.archive = h5py.File(self.filename, "a")
+        self.archive = h5py.File(join(DATA_DIR, self.filename), "a")
 
     def fget(self, obj):
         key = obj.filename
