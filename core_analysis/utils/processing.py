@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from os import makedirs
-from os.path import join, exists
+from os.path import join, split, exists, splitext
 
 import numpy as np
 
@@ -23,12 +23,13 @@ def save_array_property(dir):
             super().__init__(fget=self.fget)
 
         def fget(self, obj):
-            path = join(dir, f"{obj.filename}.npy")
+            filename = replace_ext(obj.filename, "npy")
+            path = join(dir, filename)
 
             if exists(path):
                 return self.load(path)
             else:
-                self = self._fget()
+                obj = self._fget(obj)
                 self.save(path, obj)
                 return self
 
@@ -41,9 +42,16 @@ def save_array_property(dir):
     return saved_property
 
 
+def replace_ext(path, ext):
+    ext = ext.lstrip(".")
+    return f"{splitext(path)[0]}.{ext}"
+
+
 def automatically_makedirs(function):
     def wrapper(*args, **kwargs):
         path = args[0]
+        if "." in path:
+            path, _ = split(path)
         if not exists(path):
             makedirs(path)
         return function(*args, **kwargs)
