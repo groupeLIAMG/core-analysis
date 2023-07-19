@@ -13,10 +13,16 @@ from pycocotools.coco import COCO
 
 from core_analysis.architecture import Model
 from core_analysis.preprocess import unbox, dense_crf
-from core_analysis.utils.constants import BATCH_SIZE, IMAGE_DIR, DIM
+from core_analysis.utils.constants import (
+    BATCH_SIZE,
+    IMAGE_DIR,
+    BACKGROUND_DIR,
+    MASK_DIR,
+    DIM,
+)
 from core_analysis.utils.transform import augment
 from core_analysis.utils.visualize import plot_inputs
-from core_analysis.utils.processing import stored_property
+from core_analysis.utils.processing import stored_property, save_array_property
 
 preprocess_input = sm.get_preprocessing(Model.BACKBONE)
 
@@ -109,9 +115,6 @@ class Image(np.ndarray):
         self.dir, self.filename = split(path)
         self.path = path
         self.dataset = dataset
-        self.background = self.detect_background()
-        self.masks, self.annotations = self.get_annotations(dataset)
-        self.refine_masks()
         self.info = info
         return self
 
@@ -144,13 +147,24 @@ class Image(np.ndarray):
         path = join(IMAGE_DIR, subfolder, file_name)
         return path
 
-    detect_background = unbox
-
     @stored_property
     def id(self):
         filenames = [img["file_name"] for img in self.dataset.imgs.values()]
         file_idx = filenames.index(self.filename)
         return list(self.dataset.imgs.keys())[file_idx]
+
+    @save_array_property(BACKGROUND_DIR)
+    def background(self):
+        return unbox(self)
+
+    @save_array_property(MASK_DIR)
+    def masks(self):
+        masks, _ = self.get_annotations(self.dataset)
+
+        crf_mask = dense_crf(self, masks, gw=5, bw=7, n_iterations=1)
+        crf_mask[self.background] = 0.0
+        crf_mask[..., np.sum(masks, axis=(0, 1)) == 0] = 0.0
+        return masks
 
     def get_annotations(self, coco):
         masks = np.zeros([*self.shape[:2], len(self.dataset.CAT_IDS)], dtype=bool)
@@ -164,12 +178,6 @@ class Image(np.ndarray):
             annotations += annotations
 
         return masks, annotations
-
-    def refine_masks(self):
-        crf_mask = dense_crf(self, self.masks, gw=5, bw=7, n_iterations=1)
-        crf_mask[self.background] = 0.0
-        crf_mask[..., np.sum(self.masks, axis=[0, 1]) == 0] = 0.0
-        self.masks = crf_mask
 
     def without_background(self):
         # TODO: Apply to masks as well.
