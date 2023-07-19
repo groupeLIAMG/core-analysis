@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
 import os
-from os.path import join
 from argparse import ArgumentParser
 
 os.environ["SM_FRAMEWORK"] = "tf.keras"
@@ -12,7 +11,7 @@ import tensorflow as tf
 from core_analysis.architecture import Model
 from core_analysis.dataset import prepare_inputs, prepare_test_inputs
 from core_analysis.utils.visualize import plot_loss, plot_predictions, plot_test_results
-from core_analysis.utils.constants import LOAD_FILENAME
+from core_analysis.utils.constants import LOAD_FILENAME, LABELS_PATH
 
 
 # Check the number of available GPUs.

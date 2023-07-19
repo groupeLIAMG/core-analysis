@@ -8,14 +8,12 @@ from matplotlib import pyplot as plt
 
 from core_analysis.preprocess import get_image
 from core_analysis.utils.transform import adjust_rgb
-from core_analysis.utils.constants import TODAY
-
-IMAGE_FOLDER = "images"
+from core_analysis.utils.constants import TODAY, IMAGE_DIR, PLOT_DIR
 
 
 def plot_masks(images, masks, cat_names):
     for i in range(3):
-        fig, axs = plt.subplots(1, 4, figsize=(8, 4))
+        _, axs = plt.subplots(1, 4, figsize=(8, 4))
 
         axs[0].axis("off")
         axs[0].imshow(images[i], vmin=0, vmax=1)
@@ -24,7 +22,7 @@ def plot_masks(images, masks, cat_names):
             axs[j + 1].set_title(cat_names[j])
             axs[j + 1].axis("off")
         plt.savefig(
-            join("data", "plots", f"image_tiles_masks_{i}.png"),
+            join(PLOT_DIR, f"image_tiles_masks_{i}.png"),
             dpi=300,
             bbox_inches="tight",
         )
@@ -32,7 +30,7 @@ def plot_masks(images, masks, cat_names):
 
 def plot_image_and_mask(coco, cat_ids, image_ids):
     img_id = np.random.choice(image_ids, size=1)[0]
-    image, mask, anns = get_image(coco, img_id, cat_ids=cat_ids, folder=IMAGE_FOLDER)
+    image, mask, anns = get_image(coco, img_id, cat_ids=cat_ids, folder=IMAGE_DIR)
     print("Image ID:", img_id)
 
     _, axs = plt.subplots(1, 2, figsize=(20, 10))
@@ -60,7 +58,7 @@ def plot_image_and_mask(coco, cat_ids, image_ids):
     axs[1].axis("off")
     axs[1].set_title("Masque", fontsize=12)
 
-    plt.savefig(join("data", "plots", "image_masque.png"), dpi=300, bbox_inches="tight")
+    plt.savefig(join(PLOT_DIR, "image_masque.png"), dpi=300, bbox_inches="tight")
     plt.show()
 
     return image, mask
@@ -75,14 +73,13 @@ def plot_image_with_mask(image, mask):
     plt.show()
 
 
-def plot_inputs(images, masks, qty=1):
-    for _ in range(qty):
+def plot_inputs(images, qty=1):
+    for image in np.random.choice(images, qty):
         _, axs = plt.subplots(1, 4, figsize=(12, 4))
-        ii = np.random.choice(np.arange(0, images.shape[0], 1, dtype=int))
-        axs[0].imshow(adjust_rgb(images[ii], 2, 98))
+        axs[0].imshow(adjust_rgb(image, 2, 98))
         axs[0].axis("off")
         for i in range(3):
-            axs[i + 1].imshow(masks[ii, :, :, i])
+            axs[i + 1].imshow(image.masks[:, :, i])
             axs[i + 1].axis("off")
         plt.show()
 
@@ -95,7 +92,7 @@ def plot_loss(history):
     plt.xlabel("epoch")
     plt.legend(["train", "test"], loc="upper left")
     plt.savefig(
-        join("data", "plots", f"graph_losses_{TODAY}.png"), dpi=300, bbox_inches="tight"
+        join(PLOT_DIR, f"graph_losses_{TODAY}.png"), dpi=300, bbox_inches="tight"
     )
     plt.show()
 
@@ -137,7 +134,5 @@ def plot_test_results(images, results):
         plt.xlim(70, 2300)
         plt.ylim(200, 1800)
         plt.axis("off")
-        plt.savefig(
-            join("data", "plots", f"pred_{c}.png"), dpi=300, bbox_inches="tight"
-        )
+        plt.savefig(join(PLOT_DIR, f"pred_{c}.png"), dpi=300, bbox_inches="tight")
         plt.show()
