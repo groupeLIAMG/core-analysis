@@ -69,7 +69,10 @@ def plot_image_with_mask(image, mask):
 
 
 def plot_inputs(images, qty=1):
-    for image in np.random.choice(images, qty):
+    ids = list(images.keys())
+    ids = np.random.choice(ids, qty)
+    for id in ids:
+        image = images[id]
         _, axs = plt.subplots(1, 4, figsize=(12, 4))
         axs[0].imshow(adjust_rgb(image, 2, 98))
         axs[0].axis("off")
