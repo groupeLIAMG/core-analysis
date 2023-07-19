@@ -4,7 +4,7 @@ from os.path import join
 
 import cv2
 import numpy as np
-from keras.models import load_model
+from tensorflow.keras.saving import load_model
 import pydensecrf.densecrf as dcrf
 from pydensecrf.utils import (
     create_pairwise_gaussian,
