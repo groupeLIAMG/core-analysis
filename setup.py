@@ -20,6 +20,7 @@ REQUIREMENTS = [
     "tensorflow==2.13.0",
     "opencv-python",
     "numpy",
+    "h5py",
 ]
 
 setup(

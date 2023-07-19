@@ -13,16 +13,10 @@ from pycocotools.coco import COCO
 
 from core_analysis.architecture import Model
 from core_analysis.preprocess import unbox, dense_crf
-from core_analysis.utils.constants import (
-    BATCH_SIZE,
-    IMAGE_DIR,
-    BACKGROUND_DIR,
-    MASK_DIR,
-    DIM,
-)
+from core_analysis.utils.constants import BATCH_SIZE, IMAGE_DIR, DIM
 from core_analysis.utils.transform import augment
 from core_analysis.utils.visualize import plot_inputs
-from core_analysis.utils.processing import stored_property, save_array_property
+from core_analysis.utils.processing import stored_property, saved_array_property
 
 preprocess_input = sm.get_preprocessing(Model.BACKBONE)
 
@@ -37,8 +31,7 @@ class Dataset(COCO):
         self.imgs = {
             img_id: Image(img_id, self, info) for img_id, info in self.imgs.items()
         }
-
-        plot_inputs(list(self.imgs.values()))
+        plot_inputs(self.imgs)
 
     def subset(self, mode):
         subset = copy(self)
@@ -149,15 +142,15 @@ class Image(np.ndarray):
 
     @stored_property
     def id(self):
-        filenames = [img["file_name"] for img in self.dataset.imgs.values()]
+        filenames = [img.filename for img in self.dataset.imgs.values()]
         file_idx = filenames.index(self.filename)
         return list(self.dataset.imgs.keys())[file_idx]
 
-    @save_array_property(BACKGROUND_DIR)
+    @saved_array_property
     def background(self):
         return unbox(self)
 
-    @save_array_property(MASK_DIR)
+    @saved_array_property
     def masks(self):
         masks, _ = self.get_annotations(self.dataset)
 

@@ -1,11 +1,10 @@
 # -*- coding: utf-8 -*-
 
 from os import makedirs
-from os.path import join, split, exists, splitext
+from os.path import split, exists, splitext
 
 import numpy as np
-
-from core_analysis.utils.constants import BACKGROUND_DIR
+import h5py
 
 
 class stored_property(property):
@@ -16,30 +15,22 @@ class stored_property(property):
         return getattr(obj, name)
 
 
-def save_array_property(dir):
-    class saved_property(property):
-        def __init__(self, fget=None):
-            self._fget = fget
-            super().__init__(fget=self.fget)
+class saved_array_property(stored_property):
+    def __init__(self, fget=None):
+        self._fget = fget
+        super().__init__(fget=self.fget)
+        self.filename = f"{fget.__name__}.h5"
+        self.archive = h5py.File(self.filename, "a")
 
-        def fget(self, obj):
-            filename = replace_ext(obj.filename, "npy")
-            path = join(dir, filename)
+    def fget(self, obj):
+        key = obj.filename
 
-            if exists(path):
-                return self.load(path)
-            else:
-                obj = self._fget(obj)
-                self.save(path, obj)
-                return self
-
-        def load(self, path):
-            return np.load(path)
-
-        def save(self, path, obj):
-            np.save(path, obj)
-
-    return saved_property
+        if key in self.archive.keys():
+            return self.archive[key]
+        else:
+            obj = self._fget(obj)
+            self.archive[key] = obj
+            return obj
 
 
 def replace_ext(path, ext):
@@ -52,7 +43,7 @@ def automatically_makedirs(function):
         path = args[0]
         if "." in path:
             path, _ = split(path)
-        if not exists(path):
+        if path and not exists(path):
             makedirs(path)
         return function(*args, **kwargs)
 
@@ -60,3 +51,4 @@ def automatically_makedirs(function):
 
 
 np.save = automatically_makedirs(np.save)
+h5py.File = automatically_makedirs(h5py.File)
