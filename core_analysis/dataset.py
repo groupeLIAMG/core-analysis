@@ -2,231 +2,222 @@
 
 from os import listdir
 from os.path import join
-import pickle as pkl
+from copy import copy
+from json import dump
 
 import cv2
 import numpy as np
-from numpy.random import choice
-import PIL
-from scipy.stats import mode
-from tqdm.notebook import tqdm
+from numpy.random import choice, permutation, seed
+from PIL.Image import open
+from PIL.ImageOps import exif_transpose
 import segmentation_models as sm
+from pycocotools.coco import COCO
 
-from core_analysis.architecture import Model, dense_crf
-from core_analysis.utils.constants import BATCH_SIZE, IMAGE_DIR
-from core_analysis.utils.transform import augment, undersample, return_zeroed, min_dist
+from core_analysis.architecture import Model
+from core_analysis.preprocess import unbox, dense_crf
+from core_analysis.utils.constants import BATCH_SIZE, IMAGE_DIR, DIM
+from core_analysis.utils.transform import augment
 from core_analysis.utils.visualize import plot_inputs
-from core_analysis.preprocess import preprocess_batches, preprocess_input
+from core_analysis.utils.processing import stored_property
 
 preprocess_input = sm.get_preprocessing(Model.BACKBONE)
 
 
-def get_image(coco, image_id, cat_ids, folder=""):
-    # Get all fracture annotations for a given image.
+class Dataset(COCO):
+    CAT_IDS = [1, 2, 3]
+    CAT_NAMES = ["FRACTURES", "VEINS", "REALGAR"]
+    VAL_PERCENT = 0.1
 
-    mask_grid = []
-    annotations = []
-    for cid in cat_ids:
-        annotation_ids = coco.getAnnIds(imgIds=image_id, catIds=cid)
-        anns_ = coco.loadAnns(annotation_ids)
-        file_name = coco.imgs[image_id]["file_name"]
-        subfolder = file_name.split(" ")[0]
-        image = PIL.Image.open(join(folder, subfolder, file_name))
-        image = PIL.ImageOps.exif_transpose(image)
-        image = np.array(image)
-        ny, nx = image.shape[:2]
+    def __init__(self, label_path):
+        super().__init__(label_path)
+        self.imgs = {
+            img_id: Image(info["path"], self, info)
+            for img_id, info in self.imgs.items()
+        }
 
-        if anns_:
-            mask = np.zeros((ny, nx))
-            for i in range(len(anns_)):
-                mask += coco.annToMask(anns_[i])
+        plot_inputs(self.imgs.values())
 
-            mask_grid.append(mask > 0)
-        else:
-            mask_grid.append(np.zeros((ny, nx)))
+    def subset(self, mode):
+        subset = copy(self)
 
-        annotations += anns_
-
-    if mask_grid:
-        mask_grid = np.stack(mask_grid, -1)
-    else:
-        mask_grid = np.zeros((ny, nx, 3))
-
-    return image, mask_grid, annotations
-
-
-def generate_batches(
-    image, mask, dim, patch_num, norm=True, clip_mask=False, min_dist_to_sample=0
-):
-    """
-    image - input array data
-    mask - labelled array data
-    dim - 3D-dimensions
-    patch_num - number of samples
-    norm - if True normalize RGB images
-    clip_mask - uses mask to limit central-point selection
-    """
-
-    # Select only labelled pixels.
-    size = int(patch_num)
-    # Create grids to store values.
-    X = np.zeros((size, *dim))
-    Ym = np.zeros((size, dim[0], dim[1], mask.shape[-1]))
-    y = []
-
-    pairs = []
-    # Select pairs at random.
-    idy, idx = np.where(mask > 0)[:2]
-
-    # Use mask information to limit point selection.
-    if clip_mask:
-        ny, nx = mask.shape
-        idy = idy[(idy > dim[0] // 2) & (idy < ny - dim[0] // 2)]
-        idx = idx[(idx > dim[1] // 2) & (idx < nx - dim[1] // 2)]
-
-    elems = np.arange(0, mask[mask > 0].shape[0], 1, dtype=int)
-
-    i = 0
-    iteration = 0
-    while i < size:
-        # Create batches.
-        e = choice(elems, size=1, replace=False)
-        # Create subset.
-        iy, ix = int(idy[e]), int(idx[e])
-
-        # Submask.
-        msk = mask[
-            iy - dim[0] // 2 : iy + dim[0] // 2, ix - dim[1] // 2 : ix + dim[1] // 2
-        ]
-
-        iteration += 1
-
-        # Check pc and if y-position was repeated.
-        if min_dist(ix, iy, pairs) >= min_dist_to_sample:
-            img = image[
-                iy - dim[0] // 2 : iy + dim[0] // 2,
-                ix - dim[1] // 2 : ix + dim[1] // 2,
-                :,
-            ]
-            dimm = img.shape
-
-            if dimm == dim:
-                X[i] = img
-                Ym[i, :, :, :] = msk
-                ny, nx, nz = msk.shape
-                summ = np.sum(msk.reshape((ny * nx, nz)), 0)
-                y += [np.argmax(summ)]
-                pairs.append((ix, iy))
-                i += 1
+        if mode in ["train", "val"]:
+            subset_ids = {
+                image.id for image in subset.imgs.values() if image.masks.any()
+            }
+            val_size = int(len(subset_ids) * self.VAL_PERCENT)
+            seed(0)
+            val_ids = choice(subset_ids, val_size)
+            if mode == "train":
+                subset_ids = [img_id for img_id in subset_ids if img_id not in val_ids]
             else:
-                pass
-
-        if iteration > 100:
-            # Force stop.
-            break
-
-    if norm:
-        X /= 255.0
-
-    return X[:i], Ym[:i], y[:i]
-
-
-def preprocess_batches(X, Y, fill_with_local_mean=False, pred_model=True):
-    n = 0
-    for im_i, m_i in tqdm(zip(X, Y)):
-        fill_mean = np.mean(mode(im_i, keepdims=True)[0])
-        idy, idx, _ = np.where(im_i != fill_mean)
-        local_mean = np.mean(im_i[idy, idx])
-        iy, ix, _ = np.where(im_i == fill_mean)
-        if fill_with_local_mean:
-            im_i = np.where(im_i == fill_mean, local_mean, im_i)
+                subset_ids = val_ids
+        elif mode == "test":
+            subset_ids = {
+                image.id for image in subset.imgs.values() if not image.masks.any()
+            }
         else:
-            im_i = np.where(im_i == fill_mean, 0.0, im_i)
+            raise ValueError(f"Unknown mode: {mode}")
 
-        m_i[iy, ix] = 0.0
+        subset.images = {img_id: subset.imgs[img_id] for img_id in subset_ids}
+        return subset
 
-        bilat_img = np.float32(
-            cv2.bilateralFilter(np.float32(im_i), d=3, sigmaColor=15, sigmaSpace=25)
+    # def save(self):
+    #     for image in self.images.values():
+    #         image.save_info()
+
+    def __iter__(self):
+        self.register_patches()
+        batches_idx = permutation(self.all_patches)
+        # TODO: Split into balanced batches.
+        batches_idx = np.array_split(
+            self.all_patches, len(self.all_patches) // BATCH_SIZE
         )
-        if np.isnan(bilat_img).any():
-            bilat_img = np.nan_to_num(bilat_img, nan=np.nanmean(bilat_img))
+        for batch_idx in batches_idx:
+            patches = []
+            for i, j in batch_idx:
+                patches.append(self.imgs[i].get_patch(j))
+            patches = np.array(patches)
+            patches = self.preprocess(patches)
+            yield patches
 
-        crf_mask = dense_crf(im_i, m_i, gw=5, bw=7, n_iterations=1)
-        crf_mask[iy, ix] = 0.0
-        X[n] = bilat_img
-        Y[n] = return_zeroed(m_i, crf_mask)
-        n += 1
+    # def __getitem__(self):
+    #     counts = np.unique(np.concatenate([[0, 1, 2]]), return_counts=True)[1]
 
-    return X, Y
+    #     return [Image(id) for id in batch_idx]
 
-
-def prepare_inputs(do_augment=False, do_plot=False):
-    with open(
-        join("data", "dataset", "dataset_forages_128x128_20230705.pickle"),
-        "rb",
-    ) as f:
-        dataset = pkl.load(f)
-
-    X_train, Y_train, y_train = (
-        dataset["X_train"],
-        dataset["Y_train"],
-        dataset["y_train"],
-    )
-    X_test, Y_test, _ = dataset["X_test"], dataset["Y_test"], dataset["y_test"]
-    n_classes = Y_train.shape[-1]
-
-    counts = np.unique(y_train, return_counts=True)[1]
-    n_samples = np.min(counts)
-
-    indexes = []
-    for i in range(n_classes):
-        class_idx = np.where(y_train == i)[0]
-        indexes.append(np.random.choice(class_idx, size=n_samples, replace=False))
-    indexes = np.concatenate(indexes)
-    np.random.shuffle(indexes)
-
-    X_train, Y_train = X_train[indexes], Y_train[indexes]
-
-    for i in range(0, X_train.shape[0], BATCH_SIZE):
-        (
-            X_train[i : i + BATCH_SIZE],
-            Y_train[i : i + BATCH_SIZE],
-        ) = preprocess_batches(X_train[i : i + BATCH_SIZE], Y_train[i : i + BATCH_SIZE])
-
-    if do_plot:
-        plot_inputs(X_train, Y_train, qty=5)
-
-    X_train = preprocess_input(X_train)
-    X_test = preprocess_input(X_test)
-
-    if do_augment:
-        X_train, Y_train = augment(
-            images=X_train,
-            heatmaps=Y_train.astype(np.float32),
+    @stored_property
+    def all_patches(self):
+        return np.array(
+            [(i, j) for i, img in self.imgs.items() for j in range(len(img.patches))]
         )
 
-    return X_train, Y_train, X_test, Y_test
+    def preprocess(patch, do_augment=True):
+        patch = patch.without_background()
+        patch = preprocess_input(patch)
+        if do_augment:
+            patch.image[:], patch.masks = augment(
+                images=patch,
+                heatmaps=patch.masks,
+            )
+
+        return patch
 
 
-def prepare_test_inputs():
-    image_list = []
+class Image(np.ndarray):
+    def __init__(self, path, dataset, info=None):
+        self.dataset = dataset
+        self.open(path)
+        self.background = self.detect_background()
+        self.masks, self.annotations = self.get_annotations(dataset)
+        self.refine_masks()
+        self.__init__(self.meta)
+        self.info = info
+        self.saved = False
 
-    # Walk through all files in the folder and load images.
-    for filename in listdir(IMAGE_DIR):
-        if filename.endswith(".JPG") or filename.endswith(".jpeg"):
-            # Load image and add it to the list.
-            img_path = join(IMAGE_DIR, filename)
-            img = PIL.Image.open(img_path)
-            img = PIL.ImageOps.exif_transpose(img)
-            image_list.append(np.array(img))
+    def __getitem__(self, idx):
+        item = copy(super().__getitem__(idx))
+        item.background = item.background[idx]
+        item.masks = item.masks[idx]
+        return item
 
-    ii = np.random.choice(len(image_list), size=1)[0]
-    image, _ = undersample(image_list[ii], undersample_by=1)
-    XX = np.float32(
-        cv2.bilateralFilter(np.float32(image), d=5, sigmaColor=35, sigmaSpace=35)
-    )
-    XX = preprocess_input(XX)
-    mask = (image == 0).all(axis=-1)
-    XX[mask] = 0.0
+    def __repr__(self):
+        return str(self.info)
 
-    return XX, mask
+    def open(self, path):
+        if isinstance(path, int):  # Path is actually a COCO image ID.
+            file_name = self.dataset.imgs[path]["file_name"]
+            subfolder = file_name.split(" ")[0]
+            path = join(IMAGE_DIR, subfolder, file_name)
+        self.meta = open(path)
+        self.meta = exif_transpose(self.meta)
+        return self
+
+    detect_background = unbox
+
+    @stored_property
+    def id(self):
+        filenames = [img["file_name"] for img in self.dataset.imgs.values()]
+        file_idx = filenames.index(self.meta.filename)
+        return list(self.dataset.imgs.keys())[file_idx]
+
+    @property
+    def original_shape(self):
+        return self.meta.size[::-1]  # (height, width)
+
+    def get_annotations(self, coco):
+        masks = np.zeros([*self.shape, len(self.dataset.CAT_IDS)], dtype=bool)
+        annotations = []
+        for i, cid in enumerate(self.dataset.CAT_IDS):
+            annotation_ids = coco.getAnnIds(imgIds=self.id, catIds=cid)
+            annotations = coco.loadAnns(annotation_ids)
+            for annotation in annotations:
+                mask = coco.annToMask(annotation)
+                masks[mask, i] = True
+            annotations += annotations
+
+        return masks, annotations
+
+    def refine_masks(self):
+        crf_mask = dense_crf(self, self.masks, gw=5, bw=7, n_iterations=1)
+        crf_mask[self.background] = 0.0
+        crf_mask[..., np.sum(self.masks, axis=[0, 1]) == 0] = 0.0
+        self.masks = crf_mask
+
+    def without_background(self):
+        # TODO: Apply to masks as well.
+        return View(self, get_op=lambda view: np.where(view.background, 0, view))
+
+    @stored_property
+    def patches(self):
+        patches = []
+        for i in range(self.shape[0] - DIM[0]):
+            for j in range(self.shape[1] - DIM[1]):
+                if not self.background[i + DIM[0] // 2, j + DIM[1] // 2]:
+                    classes = self.masks[i : i + DIM[0], j : j + DIM[1]]
+                    patch = Patch(self, i, j, classes)
+                    patches.append(patch)
+        return patches
+
+
+class View:
+    def __init__(
+        self, image, get_op=lambda view: view, set_op=lambda idx, value: (idx, value)
+    ):
+        self.image = image
+        self.get_op = get_op
+        self.set_op = set_op
+
+    def __getitem__(self, idx):
+        view = self.image[idx]
+        view = self.get_op(view)
+        return view
+
+    def __setitem__(self, idx, value):
+        idx, value = self.set_op(idx, value)
+        self.image[idx] = value
+
+    def __setattr__(self, name, value):
+        if name == "image" and hasattr(self, "image"):
+            raise AttributeError(
+                "Cannot change reference image implicitly. Use `view[:] = value` instead."
+            )
+        else:
+            super().__setattr__(name, value)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        pass
+
+
+class Patch(View):
+    def __init__(self, image, i, j, classes):
+        self.classes = classes
+        self.i, self.j = i, j
+        di, dj, _ = DIM
+        super().__init__(
+            image,
+            get_op=lambda view: view[i : i + di, j : j + dj],
+            set_op=lambda idx, value: ((idx[0] + i, idx[1] + j), value),
+        )

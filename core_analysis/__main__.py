@@ -35,6 +35,7 @@ def main(args):
     model = Model()
 
     if args.train:
+        dataset = Dataset(LABELS_PATH)
         X_train, Y_train, X_test, Y_test = prepare_inputs(args.do_augment, args.do_plot)
         history = model.train(X_train, Y_train, X_test, Y_test)
         if args.plot:
