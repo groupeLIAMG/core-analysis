@@ -12,27 +12,23 @@ from imgaug.augmenters import (
 )
 
 
-def adjust_rgb(img, perc_init=5, perc_final=95, nchannels=3):
+def adjust_rgb(img, perc_init=5, perc_final=95):
     dim = img.shape
-    adjusted_img = np.zeros((dim))
+    adjusted_img = np.zeros(dim)
 
-    if dim[-1] == nchannels:
-        for n in range(nchannels):
-            channel = img[:, :, n]
-            perc_i = np.percentile(channel, perc_init)
-            perc_f = np.percentile(channel, perc_final)
-            channel = np.clip(channel, perc_i, perc_f)
-            channel = normalize(channel, 1.0)
-            adjusted_img[:, :, n] = channel
-
-    else:
-        raise ValueError(f"The shape should be (M, N, {nchannels}).")
+    for n in range(dim[-1]):
+        channel = img[:, :, n]
+        perc_i = np.percentile(channel, perc_init)
+        perc_f = np.percentile(channel, perc_final)
+        channel = np.clip(channel, perc_i, perc_f)
+        channel = normalize(channel)
+        adjusted_img[:, :, n] = channel
 
     return adjusted_img
 
 
-def normalize(x, lim=255.0):
-    return (x - np.min(x)) / (np.max(x) - np.min(x)) * lim
+def normalize(x):
+    return (x - np.min(x)) / (np.max(x) - np.min(x))
 
 
 def min_dist(x_n, y_n, pairs):
