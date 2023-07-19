@@ -152,12 +152,8 @@ class Image(np.ndarray):
         file_idx = filenames.index(self.filename)
         return list(self.dataset.imgs.keys())[file_idx]
 
-    @property
-    def original_shape(self):
-        return self.meta.size[::-1]  # (height, width)
-
     def get_annotations(self, coco):
-        masks = np.zeros([*self.shape, len(self.dataset.CAT_IDS)], dtype=bool)
+        masks = np.zeros([*self.shape[:2], len(self.dataset.CAT_IDS)], dtype=bool)
         annotations = []
         for i, cid in enumerate(self.dataset.CAT_IDS):
             annotation_ids = coco.getAnnIds(imgIds=self.id, catIds=cid)
