@@ -14,6 +14,12 @@ REQUIREMENTS = [
         name="pydensecrf",
     ),
     "imgaug",
+    "proplot",
+    "pycocotools",
+    "pillow",
+    "tensorflow==2.13.0",
+    "opencv-python",
+    "numpy",
 ]
 
 setup(
