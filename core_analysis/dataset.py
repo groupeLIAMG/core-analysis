@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from os.path import join
+from os.path import join, split
 from copy import copy
 from json import dump
 
@@ -102,8 +102,12 @@ class Dataset(COCO):
 
 class Image(np.ndarray):
     def __new__(cls, path, dataset, info=None):
-        data = cls._open(None, path, dataset)  # Optionally, `path` can be an image ID.
+        if isinstance(path, int):  # Path is actually a COCO image ID.
+            path = cls.convert_id_to_path(None, path, dataset)
+        data = cls._open(None, path)
         self = np.asarray(data).view(cls)
+        self.dir, self.filename = split(path)
+        self.path = path
         self.dataset = dataset
         self.background = self.detect_background()
         self.masks, self.annotations = self.get_annotations(dataset)
@@ -118,30 +122,34 @@ class Image(np.ndarray):
 
     def __getitem__(self, idx):
         item = copy(super().__getitem__(idx))
-        item.background = item.background[idx]
-        item.masks = item.masks[idx]
+        if hasattr(item, "background"):
+            item.background = item.background[idx]
+        if hasattr(item, "masks"):
+            item.masks = item.masks[idx]
         return item
 
     def __repr__(self):
         return str(self.info)
 
-    def _open(self, path, dataset=None):
-        if dataset is None:
-            dataset = self.dataset
-        if isinstance(path, int):  # Path is actually a COCO image ID.
-            file_name = dataset.imgs[path]["file_name"]
-            subfolder = file_name.split(" ")[0]
-            path = join(IMAGE_DIR, subfolder, file_name)
+    def _open(self, path):
         data = open(path)
         data = exif_transpose(data)
         return data
+
+    def convert_id_to_path(self, id, dataset=None):
+        if dataset is None:
+            dataset = self.dataset
+        file_name = dataset.imgs[id]["file_name"]
+        subfolder = file_name.split(" ")[0]
+        path = join(IMAGE_DIR, subfolder, file_name)
+        return path
 
     detect_background = unbox
 
     @stored_property
     def id(self):
         filenames = [img["file_name"] for img in self.dataset.imgs.values()]
-        file_idx = filenames.index(self.meta.filename)
+        file_idx = filenames.index(self.filename)
         return list(self.dataset.imgs.keys())[file_idx]
 
     @property
