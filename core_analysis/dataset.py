@@ -117,6 +117,9 @@ class Image(np.ndarray):
         return cls(path, dataset, info)
 
     def __getitem__(self, idx):
+        if isinstance(idx, str):
+            return self.info[idx]
+
         item = copy(super().__getitem__(idx))
         if hasattr(item, "background"):
             item.background = item.background[idx]
