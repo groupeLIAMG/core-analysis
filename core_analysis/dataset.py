@@ -1,8 +1,11 @@
 # -*- coding: utf-8 -*-
 
+import os
 from os.path import join, split
 from copy import copy
 from json import dump
+
+os.environ["SM_FRAMEWORK"] = "tf.keras"
 
 import numpy as np
 from numpy.random import choice, permutation, seed

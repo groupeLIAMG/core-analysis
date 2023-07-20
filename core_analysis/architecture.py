@@ -1,6 +1,9 @@
 # -*- coding: utf-8 -*-
 
+import os
 from os.path import join
+
+os.environ["SM_FRAMEWORK"] = "tf.keras"
 
 import numpy as np
 import tensorflow as tf

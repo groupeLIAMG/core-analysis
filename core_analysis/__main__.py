@@ -1,9 +1,6 @@
 # -*- coding: utf-8 -*-
 
-import os
 from argparse import ArgumentParser
-
-os.environ["SM_FRAMEWORK"] = "tf.keras"
 
 import tensorflow as tf
 
