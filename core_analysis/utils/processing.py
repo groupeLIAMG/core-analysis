@@ -4,7 +4,7 @@ from os import makedirs
 from os.path import join, split, exists, splitext
 
 import numpy as np
-import h5py
+from h5py import File
 
 from core_analysis.utils.constants import DATA_DIR
 
@@ -22,7 +22,7 @@ class saved_array_property(stored_property):
         self._fget = fget
         super().__init__(fget=self.fget)
         self.filename = f"{fget.__name__}.h5"
-        self.archive = h5py.File(join(DATA_DIR, self.filename), "a")
+        self.archive = File(join(DATA_DIR, self.filename), "a")
 
     def fget(self, obj):
         key = obj.filename
@@ -53,4 +53,3 @@ def automatically_makedirs(function):
 
 
 np.save = automatically_makedirs(np.save)
-h5py.File = automatically_makedirs(h5py.File)
