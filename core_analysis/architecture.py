@@ -13,7 +13,7 @@ import segmentation_models as sm
 
 from core_analysis.postprocess import predict_tiles
 from core_analysis.utils.constants import (
-    CHECKPOINT_DIR,
+    MODEL_DIR,
     DIM,
     N_CLASSES,
     LR,
@@ -25,10 +25,10 @@ class Model:
     BACKBONE = "efficientnetb7"
     BATCH_SIZE = 16
 
-    def __init__(self, weights_filename=None, args=None):
+    def __init__(self, weights_filename=None):
         if weights_filename is not None:
             self.model = tf.keras.models.load_model(
-                join(CHECKPOINT_DIR, args.weights),
+                join(MODEL_DIR, weights_filename),
                 compile=False,
             )
         else:
@@ -48,10 +48,10 @@ class Model:
             metrics=["acc"],
         )
 
-    def train(self, X_train, Y_train, X_test, Y_test):
+    def train(self, train_iterator, val_iterator):
         checkpoint_filename = f"linknet_{self.BACKBONE}_weights_{TODAY}.h5"
         checkpointer = callbacks.ModelCheckpoint(
-            filepath=join(CHECKPOINT_DIR, checkpoint_filename),
+            filepath=join(MODEL_DIR, checkpoint_filename),
             monitor="loss",
             verbose=1,
             save_best_only=True,
