@@ -156,10 +156,11 @@ class Image(np.ndarray):
     @saved_array_property
     def masks(self):
         masks, _ = self.get_annotations(self.dataset)
-
-        crf_mask = dense_crf(self, masks, gw=5, bw=7, n_iterations=1)
-        crf_mask[self.background] = 0.0
-        crf_mask[..., np.sum(masks, axis=(0, 1)) == 0] = 0.0
+        if masks.any():
+            crf_mask = dense_crf(self, masks, gw=5, bw=7, n_iterations=1)
+            crf_mask[self.background] = False
+            crf_mask[..., ~masks.any(axis=(0, 1))] = False
+            masks = crf_mask
         return masks
 
     def get_annotations(self, coco):
@@ -170,6 +171,7 @@ class Image(np.ndarray):
             annotations = coco.loadAnns(annotation_ids)
             for annotation in annotations:
                 mask = coco.annToMask(annotation)
+                mask = mask.astype(bool)
                 masks[mask, i] = True
             annotations += annotations
 
