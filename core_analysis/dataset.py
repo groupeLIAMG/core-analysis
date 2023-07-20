@@ -15,7 +15,7 @@ import segmentation_models as sm
 from pycocotools.coco import COCO
 
 from core_analysis.architecture import Model
-from core_analysis.preprocess import unbox, dense_crf
+from core_analysis.preprocess import unbox
 from core_analysis.utils.constants import BATCH_SIZE, IMAGE_DIR, DIM
 from core_analysis.utils.transform import augment
 from core_analysis.utils.visualize import plot_inputs
@@ -40,9 +40,9 @@ class Dataset(COCO):
         subset = copy(self)
 
         if mode in ["train", "val"]:
-            subset_ids = {
+            subset_ids = [
                 image.id for image in subset.imgs.values() if image.masks.any()
-            }
+            ]
             val_size = int(len(subset_ids) * self.VAL_PERCENT)
             seed(0)
             val_ids = choice(subset_ids, val_size)
@@ -156,14 +156,9 @@ class Image(np.ndarray):
     def background(self):
         return unbox(self)
 
-    @saved_array_property
+    @stored_property
     def masks(self):
         masks, _ = self.get_annotations(self.dataset)
-        if masks.any():
-            crf_mask = dense_crf(self, masks, gw=5, bw=7, n_iterations=1)
-            crf_mask[self.background] = False
-            crf_mask[..., ~masks.any(axis=(0, 1))] = False
-            masks = crf_mask
         return masks
 
     def get_annotations(self, coco):
