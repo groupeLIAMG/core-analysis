@@ -28,7 +28,7 @@ class saved_array_property(stored_property):
         key = obj.filename
 
         if key in self.archive.keys():
-            return self.archive[key].value
+            return self.archive[key][:]
         else:
             obj = self._fget(obj)
             self.archive[key] = obj
