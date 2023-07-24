@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from os import makedirs
-from os.path import join, split, exists, splitext
+from os.path import split, exists, splitext
 
 import numpy as np
 from h5py import File
@@ -23,16 +23,11 @@ class saved_array_property:
 
     def __get__(self, obj, objtype=None):
         key = obj.filename
-
         if key in self.archive.keys():
             array = self.archive[key][:]
         else:
             array = self.fget(obj)
             self.archive[key] = array
-
-        name = "_" + self.fget.__name__
-        if not hasattr(obj, name):
-            setattr(obj, name, array)
         return array
 
 
