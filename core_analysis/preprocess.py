@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 
 from os.path import join
-
 import cv2
 import numpy as np
 from tensorflow.keras.saving import load_model

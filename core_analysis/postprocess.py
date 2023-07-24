@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
 
+from tabnanny import verbose
 import cv2
 import numpy as np
+from tqdm import tqdm
 
 
 class predict_tiles:
@@ -11,12 +13,17 @@ class predict_tiles:
         self.reflect = reflect
         self.merge_func = merge_func
 
-    def create_batches(self, data, dim, step, n_classes):
+    def overlap(self, im1, im2):
+        result = self.merge_func([im1, im2], 0)
+        return result
+
+    def create_batches(self, data, dim, overlap_ratio, n_classes):
         if self.add_padding:
             data = cv2.copyMakeBorder(
                 data, dim[0], dim[1], dim[0], dim[1], cv2.BORDER_REFLECT
             )
 
+        step = int((1 - overlap_ratio) * dim[0])
         (self.y_max, self.x_max, _) = data.shape
         sy = self.y_max // step
         sx = self.x_max // step
@@ -82,21 +89,17 @@ class predict_tiles:
         if self.reflect:
             self.num = n + m + j + k
 
-    def predict(self, batches_num, coords_channels=False):
+    def predict(self, batches_num, extra_channels=0, output=0, pad=3):
         results = []
 
-        for n in range(0, self.num, batches_num):
-            if coords_channels:
-                p = self.model.predict(
-                    [
-                        self.batches[:batches_num, :, :, :coords_channels],
-                        self.batches[:batches_num, :, :, coords_channels:],
-                    ]
-                )
+        for n in tqdm(range(0, self.num, batches_num)):
+            p = self.model.predict(self.batches[:batches_num], verbose=0)
 
-            else:
-                p = self.model.predict(self.batches[:batches_num])
-
+            # drop border
+            p[:, :pad, :] = np.nan
+            p[:, -pad:, :] = np.nan
+            p[:, -pad:, :] = np.nan
+            p[:, :, -pad:] = np.nan
             results.append(p)
             self.batches = self.batches[batches_num:]
 
@@ -104,7 +107,7 @@ class predict_tiles:
         del self.batches
         del results
 
-    def merge(self):
+    def reconstruct(self, results):
         # Preallocate memory.
         grid = np.zeros((1, self.y_max, self.x_max, self.n_classes))
 
@@ -115,16 +118,13 @@ class predict_tiles:
                     :,
                     y - self.dim[1] // 2 : y + self.dim[1] // 2,
                     x - self.dim[0] // 2 : x + self.dim[0] // 2,
-                ] = self.merge_func(
-                    (
-                        grid[
-                            0,
-                            y - self.dim[1] // 2 : y + self.dim[1] // 2,
-                            x - self.dim[0] // 2 : x + self.dim[0] // 2,
-                        ],
-                        self.results[n],
-                    ),
-                    axis=0,
+                ] = self.overlap(
+                    grid[
+                        0,
+                        y - self.dim[1] // 2 : y + self.dim[1] // 2,
+                        x - self.dim[0] // 2 : x + self.dim[0] // 2,
+                    ],
+                    results[n],
                 )
                 n += 1
 
@@ -138,16 +138,13 @@ class predict_tiles:
                         0,
                         y - self.dim[1] // 2 : y + self.dim[1] // 2,
                         x - self.dim[0] // 2 : x + self.dim[0] // 2,
-                    ] = self.merge_func(
-                        (
-                            grid[
-                                0,
-                                y - self.dim[1] // 2 : y + self.dim[1] // 2,
-                                x - self.dim[0] // 2 : x + self.dim[0] // 2,
-                            ],
-                            self.results[n + m],
-                        ),
-                        axis=0,
+                    ] = self.overlap(
+                        grid[
+                            0,
+                            y - self.dim[1] // 2 : y + self.dim[1] // 2,
+                            x - self.dim[0] // 2 : x + self.dim[0] // 2,
+                        ],
+                        results[n + m],
                     )
                     m += 1
 
@@ -160,16 +157,13 @@ class predict_tiles:
                         0,
                         y - self.dim[1] // 2 : y + self.dim[1] // 2,
                         x - self.dim[0] // 2 : x + self.dim[0] // 2,
-                    ] = self.merge_func(
-                        (
-                            grid[
-                                0,
-                                y - self.dim[1] // 2 : y + self.dim[1] // 2,
-                                x - self.dim[0] // 2 : x + self.dim[0] // 2,
-                            ],
-                            self.results[n + m + j],
-                        ),
-                        axis=0,
+                    ] = self.overlap(
+                        grid[
+                            0,
+                            y - self.dim[1] // 2 : y + self.dim[1] // 2,
+                            x - self.dim[0] // 2 : x + self.dim[0] // 2,
+                        ],
+                        results[n + m + j],
                     )
                     j += 1
 
@@ -182,16 +176,13 @@ class predict_tiles:
                         0,
                         y - self.dim[1] // 2 : y + self.dim[1] // 2,
                         x - self.dim[0] // 2 : x + self.dim[0] // 2,
-                    ] = self.merge_func(
-                        (
-                            grid[
-                                0,
-                                y - self.dim[1] // 2 : y + self.dim[1] // 2,
-                                x - self.dim[0] // 2 : x + self.dim[0] // 2,
-                            ],
-                            self.results[n + m + j + k],
-                        ),
-                        axis=0,
+                    ] = self.overlap(
+                        grid[
+                            0,
+                            y - self.dim[1] // 2 : y + self.dim[1] // 2,
+                            x - self.dim[0] // 2 : x + self.dim[0] // 2,
+                        ],
+                        results[n + m + j + k],
                     )
                     k += 1
 
@@ -199,3 +190,8 @@ class predict_tiles:
             return grid[0, self.dim[1] : -self.dim[1], self.dim[0] : -self.dim[0], :]
         else:
             return grid[0]
+
+    def merge(self):
+        output = self.reconstruct(self.results)
+
+        return output
