@@ -1,62 +1,83 @@
+# -*- coding: utf-8 -*-
+
+import os
+from os.path import join
+
+os.environ["SM_FRAMEWORK"] = "tf.keras"
+
 import numpy as np
 import tensorflow as tf
+from keras import callbacks
 from keras import backend as K
-import pydensecrf.densecrf as dcrf
-from pydensecrf.utils import (
-    create_pairwise_gaussian,
-    create_pairwise_bilateral,
-    unary_from_softmax,
+import segmentation_models as sm
+
+from core_analysis.postprocess import predict_tiles
+from core_analysis.utils.constants import (
+    MODEL_DIR,
+    DIM,
+    N_CLASSES,
+    LR,
+    TODAY,
 )
 
 
-def dense_crf(image, final_probabilities, gw=11, bw=3, n_iterations=5):
-    """
-    gw - pairwise gaussian window size: enforces more spatially consistent segmentations.
-    bw - pairwise bilateral window size: uses local color features to refine predictions.
-    """
+class Model:
+    BACKBONE = "efficientnetb7"
+    BATCH_SIZE = 16
 
-    ny = image.shape[0]
-    nx = image.shape[1]
-    n_classes = final_probabilities.shape[-1]
-    softmax = final_probabilities.squeeze()
-    softmax = softmax.transpose((2, 0, 1))
+    def __init__(self, weights_filename=None):
+        if weights_filename is not None:
+            self.model = tf.keras.models.load_model(
+                join(MODEL_DIR, weights_filename),
+                compile=False,
+            )
+        else:
+            self.model = sm.Linknet(
+                self.BACKBONE,
+                classes=N_CLASSES,
+                activation="softmax",
+                encoder_weights="imagenet",
+                encoder_freeze=False,
+            )
 
-    # The input should be the negative of the logarithm of probability values.
-    # Look up the definition of the unary_from_softmax for more information.
-    unary = unary_from_softmax(softmax, scale=None, clip=1e-5)
+        loss = masked_loss(DIM, ths=0.5, hold_out=0.1)
+        optimizer = tf.keras.optimizers.Adam(learning_rate=LR)
+        self.model.compile(
+            optimizer=optimizer,
+            loss=loss.contrastive_loss,
+            metrics=["acc"],
+        )
 
-    # The inputs should be C-continious -- we are using Cython wrapper.
-    unary = np.ascontiguousarray(unary)
+    def train(self, train_iterator, val_iterator):
+        checkpoint_filename = f"linknet_{self.BACKBONE}_weights_{TODAY}.h5"
+        checkpointer = callbacks.ModelCheckpoint(
+            filepath=join(MODEL_DIR, checkpoint_filename),
+            monitor="loss",
+            verbose=1,
+            save_best_only=True,
+            mode="min",
+        )
+        early_stopping = tf.keras.callbacks.EarlyStopping(
+            monitor="loss",
+            min_delta=10e-4,
+            patience=50,
+        )
+        history = self.model.fit(
+            X_train,
+            Y_train,
+            batch_size=self.BATCH_SIZE,
+            validation_data=(X_test, Y_test),
+            callbacks=[checkpointer, early_stopping],
+            epochs=250,
+        )
+        return history
 
-    d = dcrf.DenseCRF(ny * nx, n_classes)
-
-    d.setUnaryEnergy(unary)
-
-    # This potential penalizes small pieces of segmentation that are
-    # spatially isolated -- enforce more spatially consistent segmentations.
-    feats = create_pairwise_gaussian(sdims=(gw, gw), shape=(ny, nx))
-
-    d.addPairwiseEnergy(
-        feats, compat=3, kernel=dcrf.DIAG_KERNEL, normalization=dcrf.NORMALIZE_SYMMETRIC
-    )
-
-    # This creates the color-dependent features --
-    # because the segmentation that we get from CNN are too coarse
-    # and we can use local color features to refine them.
-    feats = create_pairwise_bilateral(
-        sdims=(bw, bw), schan=(7, 7, 7), img=image, chdim=2
-    )
-
-    d.addPairwiseEnergy(
-        feats, compat=3, kernel=dcrf.DIAG_KERNEL, normalization=dcrf.NORMALIZE_SYMMETRIC
-    )
-
-    Q = d.inference(n_iterations)
-    probs = np.array(Q, dtype=np.float32).reshape((n_classes, ny, nx))
-    probs = np.around(probs, 4)
-    # res = np.argmax(Q, axis=0).reshape((ny, nx))
-
-    return probs.swapaxes(1, 0).swapaxes(1, 2)
+    def test(self, images):
+        pred_tile = predict_tiles(self.model, merge_func=np.max, reflect=True)
+        pred_tile.create_batches(images, DIM, step=int(DIM[0]), n_classes=N_CLASSES)
+        pred_tile.predict(batches_num=1500, coords_channels=False)
+        results = pred_tile.merge()
+        return results
 
 
 class masked_loss:
