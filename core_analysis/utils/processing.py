@@ -6,8 +6,6 @@ from os.path import join, split, exists, splitext
 import numpy as np
 from h5py import File
 
-from core_analysis.utils.constants import DATA_DIR
-
 
 class stored_property(property):
     def __get__(self, obj, objtype=None):
@@ -17,22 +15,25 @@ class stored_property(property):
         return getattr(obj, name)
 
 
-class saved_array_property(stored_property):
+class saved_array_property:
     def __init__(self, fget=None):
-        self._fget = fget
-        super().__init__(fget=self.fget)
+        self.fget = fget
         self.filename = f"{fget.__name__}.h5"
-        self.archive = File(join(DATA_DIR, self.filename), "a")
+        self.archive = File(self.filename, "a")
 
-    def fget(self, obj):
+    def __get__(self, obj, objtype=None):
         key = obj.filename
 
         if key in self.archive.keys():
-            return self.archive[key][:]
+            array = self.archive[key][:]
         else:
-            obj = self._fget(obj)
-            self.archive[key] = obj
-            return obj
+            array = self.fget(obj)
+            self.archive[key] = array
+
+        name = "_" + self.fget.__name__
+        if not hasattr(obj, name):
+            setattr(obj, name, array)
+        return array
 
 
 def replace_ext(path, ext):

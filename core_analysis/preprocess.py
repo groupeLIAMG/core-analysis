@@ -26,5 +26,7 @@ def unbox(original_image, batches_num=1000, threshold=0.6):
 
     result = upsample(result, original_image.shape)
     result = result < threshold
+    if result.ndim > 2:
+        result = result.any(axis=-1)
 
     return result

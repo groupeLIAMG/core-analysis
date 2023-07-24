@@ -65,7 +65,6 @@ class Dataset(COCO):
     #         image.save_info()
 
     def __iter__(self):
-        self.register_patches()
         batches_idx = permutation(self.all_patches)
         # TODO: Split into balanced batches.
         batches_idx = np.array_split(
@@ -156,7 +155,7 @@ class Image(np.ndarray):
     def background(self):
         return unbox(self)
 
-    @stored_property
+    @saved_array_property
     def masks(self):
         masks, _ = self.get_annotations(self.dataset)
         return masks
