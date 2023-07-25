@@ -40,9 +40,7 @@ class Dataset(COCO):
         subset = copy(self)
 
         if mode in ["train", "val"]:
-            subset_ids = [
-                image.id for image in subset.imgs.values() if image.masks.any()
-            ]
+            subset_ids = [image.id for image in subset.imgs.values() if image.is_train]
             val_size = int(len(subset_ids) * self.VAL_PERCENT)
             seed(0)
             val_ids = choice(subset_ids, val_size)
@@ -52,12 +50,12 @@ class Dataset(COCO):
                 subset_ids = val_ids
         elif mode == "test":
             subset_ids = {
-                image.id for image in subset.imgs.values() if not image.masks.any()
+                image.id for image in subset.imgs.values() if not image.is_train
             }
         else:
             raise ValueError(f"Unknown mode: {mode}")
 
-        subset.images = {img_id: subset.imgs[img_id] for img_id in subset_ids}
+        subset.imgs = {img_id: subset.imgs[img_id] for img_id in subset_ids}
         return subset
 
     # def save(self):
@@ -147,23 +145,30 @@ class Image:
         file_idx = filenames.index(self.filename)
         return list(self.dataset.imgs.keys())[file_idx]
 
+    @stored_property
+    def is_train(self):
+        if self.dataset.getAnnIds(imgIds=self.id, catIds=self.dataset.CAT_IDS):
+            return True
+        else:
+            return False
+
     @saved_array_property
     def background(self):
         return unbox(self)
 
     @saved_array_property
     def masks(self):
-        masks, _ = self.get_annotations(self.dataset)
+        masks, _ = self.get_annotations()
         return masks
 
-    def get_annotations(self, coco):
+    def get_annotations(self):
         masks = np.zeros([*self.shape[:2], len(self.dataset.CAT_IDS)], dtype=bool)
         annotations = []
         for i, cid in enumerate(self.dataset.CAT_IDS):
-            annotation_ids = coco.getAnnIds(imgIds=self.id, catIds=cid)
-            annotations = coco.loadAnns(annotation_ids)
+            annotation_ids = self.dataset.getAnnIds(imgIds=self.id, catIds=cid)
+            annotations = self.dataset.loadAnns(annotation_ids)
             for annotation in annotations:
-                mask = coco.annToMask(annotation)
+                mask = self.dataset.annToMask(annotation)
                 mask = mask.astype(bool)
                 masks[mask, i] = True
             annotations += annotations
