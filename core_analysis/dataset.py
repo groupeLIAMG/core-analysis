@@ -101,33 +101,25 @@ class Dataset(COCO):
         return patch
 
 
-class Image(np.ndarray):
-    def __new__(cls, path, dataset, info=None):
-        if isinstance(path, int):  # Path is actually a COCO image ID.
-            path = cls.convert_id_to_path(None, path, dataset)
-        data = cls._open(None, path)
-        self = np.asarray(data).view(cls)
+class Image:
+    def __init__(self, path, dataset, info=None):
+        if isinstance(path, int):
+            path = self.convert_id_to_path(path, dataset)
+        self.data = np.array(self._open(path))
         self.dir, self.filename = split(path)
         self.path = path
         self.dataset = dataset
         self.info = info
-        return self
 
     @classmethod
     def open(cls, path, dataset, info=None):
-        # Alias for `__new__`.
         return cls(path, dataset, info)
 
     def __getitem__(self, idx):
         if isinstance(idx, str):
             return self.info[idx]
-
-        item = copy(super().__getitem__(idx))
-        if hasattr(item, "background"):
-            item.background = item.background[idx]
-        if hasattr(item, "masks"):
-            item.masks = item.masks[idx]
-        return item
+        else:
+            return self.data[idx]
 
     def __repr__(self):
         return str(self.info)
@@ -136,6 +128,10 @@ class Image(np.ndarray):
         data = open(path)
         data = exif_transpose(data)
         return data
+
+    @property
+    def shape(self):
+        return self.data.shape
 
     def convert_id_to_path(self, id, dataset=None):
         if dataset is None:

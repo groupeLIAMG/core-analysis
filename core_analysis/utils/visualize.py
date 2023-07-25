@@ -45,7 +45,7 @@ def plot_image_and_mask(image):
         )
         axs[0].add_patch(bb)
 
-    axs[0].imshow(adjust_rgb(image, 2, 98))
+    axs[0].imshow(adjust_rgb(image.data, 2, 98))
     axs[0].set_aspect(1)
     axs[0].axis("off")
     axs[0].set_title("Image", fontsize=12)
@@ -61,7 +61,7 @@ def plot_image_and_mask(image):
 
 def plot_image_with_mask(image, mask):
     plt.figure(figsize=(12, 12))
-    plt.imshow(adjust_rgb(image, 2, 98))
+    plt.imshow(adjust_rgb(image.data, 2, 98))
     plt.imshow(np.where(mask > 0, 1, np.nan), cmap="viridis", alpha=0.5)
     plt.axis("scaled")
     plt.axis("off")
@@ -74,7 +74,7 @@ def plot_inputs(images, qty=1):
     for id in ids:
         image = images[id]
         _, axs = plt.subplots(1, 4, figsize=(12, 4))
-        axs[0].imshow(adjust_rgb(image, 2, 98))
+        axs[0].imshow(adjust_rgb(image.data, 2, 98))
         axs[0].axis("off")
         for i in range(3):
             axs[i + 1].imshow(image.masks[:, :, i])
@@ -101,7 +101,7 @@ def plot_predictions(model, images, labels, begin=None, end=None):
     for n, i in enumerate(range(begin, end)):
         _, axs = plt.subplots(1, 5, figsize=(15, 6))
 
-        axs[0].imshow(adjust_rgb(images[i], 10, 90))
+        axs[0].imshow(adjust_rgb(images[i].data, 10, 90))
         axs[0].axis("off")
         axs[1].imshow(labels[i, :, :, 1], cmap="plasma", vmin=0, vmax=1)
         axs[1].axis("off")
@@ -119,7 +119,7 @@ def plot_test_results(images, results):
     for c in range(results.shape[-1]):
         image = image.without_background()
         fig, ax = plt.subplots(figsize=(15, 15))
-        ax.imshow(adjust_rgb(images, 5, 99), zorder=0)
+        ax.imshow(adjust_rgb(images.data, 5, 99), zorder=0)
         ax.pcolormesh(
             x,
             y,
