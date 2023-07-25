@@ -91,8 +91,8 @@ class Dataset(COCO):
         patch = patch.without_background()
         patch = preprocess_input(patch)
         if do_augment:
-            patch.image[:], patch.masks = augment(
-                images=patch,
+            patch.image.data, patch.masks = augment(
+                images=patch.data,
                 heatmaps=patch.masks,
             )
 
@@ -103,7 +103,6 @@ class Image:
     def __init__(self, path, dataset, info=None):
         if isinstance(path, int):
             path = self.convert_id_to_path(path, dataset)
-        self.data = np.array(self._open(path))
         self.dir, self.filename = split(path)
         self.path = path
         self.dataset = dataset
@@ -122,14 +121,15 @@ class Image:
     def __repr__(self):
         return str(self.info)
 
-    def _open(self, path):
-        data = open(path)
+    @saved_array_property
+    def data(self):
+        data = open(self.path)
         data = exif_transpose(data)
-        return data
+        return np.array(data)
 
     @property
     def shape(self):
-        return self.data.shape
+        return self["height"], self["width"], 3
 
     def convert_id_to_path(self, id, dataset=None):
         if dataset is None:
