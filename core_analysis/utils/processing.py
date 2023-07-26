@@ -19,7 +19,7 @@ class saved_array_property:
     def __init__(self, fget=None):
         self.fget = fget
         self.filename = f"{fget.__name__}.h5"
-        self.archive = File(self.filename, "a", swmr=True)
+        self.archive = File(self.filename, "a")
 
     def __get__(self, obj, objtype=None):
         key = obj.filename
@@ -28,6 +28,7 @@ class saved_array_property:
         else:
             array = self.fget(obj)
             self.archive[key] = array
+            self.archive.flush()
         return array
 
 
