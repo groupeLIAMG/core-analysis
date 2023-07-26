@@ -71,9 +71,9 @@ class Dataset(COCO):
         for batch_idx in batches_idx:
             patches = []
             for i, j in batch_idx:
-                patches.append(self.imgs[i].get_patch(j))
-            patches = np.array(patches)
-            patches = self.preprocess(patches)
+                patch = self.imgs[i].get_patch(j)
+                patch = self.preprocess(patch)
+                patches.append(patch)
             yield patches
 
     # def __getitem__(self):
@@ -84,15 +84,15 @@ class Dataset(COCO):
     @stored_property
     def all_patches(self):
         return np.array(
-            [(i, j) for i, img in self.imgs.items() for j in range(len(img.patches))]
+            [(i, j) for i, img in self.imgs.items() for j in range(len(img.patches_ij))]
         )
 
-    def preprocess(patch, do_augment=True):
+    def preprocess(self, patch, do_augment=True):
         patch = patch.without_background()
-        patch = preprocess_input(patch)
+        patch.image.data = preprocess_input(patch[:])
         if do_augment:
             patch.image.data, patch.masks = augment(
-                images=patch.data,
+                images=patch.image.data,
                 heatmaps=patch.masks,
             )
 
@@ -180,15 +180,25 @@ class Image:
         return View(self, get_op=lambda view: np.where(view.background, 0, view))
 
     @stored_property
-    def patches(self):
-        patches = []
-        for i in range(self.shape[0] - DIM[0]):
-            for j in range(self.shape[1] - DIM[1]):
-                if not self.background[i + DIM[0] // 2, j + DIM[1] // 2]:
-                    classes = self.masks[i : i + DIM[0], j : j + DIM[1]]
-                    patch = Patch(self, i, j, classes)
-                    patches.append(patch)
-        return patches
+    def patches_ij(self):
+        patches_ij = np.meshgrid(
+            np.arange(self.shape[0] - DIM[0]),
+            np.arange(self.shape[1] - DIM[1]),
+            indexing="ij",
+        )
+        patches_ij = np.moveaxis(patches_ij, 0, -1)
+        background = self.background[
+            DIM[0] // 2 : -DIM[0] // 2 - DIM[0] % 2,
+            DIM[1] // 2 : -DIM[1] // 2 - DIM[0] % 2,
+        ]
+        patches_ij = patches_ij[background]
+
+        return patches_ij
+
+    def get_patch(self, idx):
+        i, j = self.patches_ij[idx]
+        classes = self.masks[i : i + DIM[0], j : j + DIM[1]]
+        return Patch(self, i, j, classes)
 
 
 class View:
