@@ -7,7 +7,7 @@ from tqdm import tqdm
 
 
 class predict_tiles:
-    def __init__(self, model, merge_func=np.mean, add_padding=False, reflect=False):
+    def __init__(self, model, merge_func=np.nanmean, add_padding=False, reflect=False):
         self.model = model
         self.add_padding = add_padding
         self.reflect = reflect
@@ -33,7 +33,7 @@ class predict_tiles:
         self.n_classes = n_classes
 
         if self.reflect:
-            batch = np.zeros((4 * sy * sx, *dim))
+            batch = np.full((4 * sy * sx, *dim), np.nan)
 
         n = 0
         for y in range(dim[1] // 2, self.y_max - dim[1] // 2, self.step):
@@ -89,7 +89,7 @@ class predict_tiles:
         if self.reflect:
             self.num = n + m + j + k
 
-    def predict(self, batches_num, extra_channels=0, output=0, pad=3):
+    def predict(self, batches_num, pad=3):
         results = []
 
         for n in tqdm(range(0, self.num, batches_num)):
@@ -108,8 +108,8 @@ class predict_tiles:
         del results
 
     def reconstruct(self, results):
-        # Preallocate memory.
-        grid = np.zeros((1, self.y_max, self.x_max, self.n_classes))
+        # reserve memory
+        grid = np.full((1, self.y_max, self.x_max, self.n_classes), np.nan)
 
         n = 0
         for y in range(self.dim[1] // 2, self.y_max - self.dim[1] // 2, self.step):
@@ -126,6 +126,7 @@ class predict_tiles:
                     ],
                     results[n],
                 )
+
                 n += 1
 
         if self.reflect:
@@ -188,6 +189,7 @@ class predict_tiles:
 
         if self.add_padding:
             return grid[0, self.dim[1] : -self.dim[1], self.dim[0] : -self.dim[0], :]
+
         else:
             return grid[0]
 
