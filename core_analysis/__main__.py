@@ -6,8 +6,15 @@ import tensorflow as tf
 
 from core_analysis.dataset import Dataset
 from core_analysis.architecture import Model
-from core_analysis.utils.visualize import plot_loss, plot_predictions, plot_test_results
-from core_analysis.utils.constants import MODEL_FILENAME, LABELS_PATH
+from core_analysis.utils.visualize import (
+    turn_plot_off,
+    Figure,
+    Image,
+    Mask,
+    Loss,
+    wait_for_figures,
+)
+from core_analysis.utils.constants import MODEL_FILENAME, LABELS_PATH, TODAY
 
 
 # Check the number of available GPUs.
@@ -27,21 +34,51 @@ parser.add_argument("-a", "--do_augment", action="store_true")
 
 
 def main(args):
-    model = Model()
+    if not args.plot:
+        turn_plot_off()
+
+    model = Model(args.weights_filename)
     dataset = Dataset(LABELS_PATH)
 
     if args.train:
-        history = model.train(
-            dataset.subset("train"), dataset.subset("val"), args.weights_filename
+        train_subset = dataset.subset("train")
+        val_subset = dataset.subset("val")
+
+        image = next(iter(train_subset.imgs.values()))
+        Figure(
+            filename="image_masks",
+            subplots=[
+                Image(image, draw_boxes=True),
+                *(Mask(image.masks[..., i]) for i in range(3)),
+            ],
         )
-        if args.plot:
-            plot_loss(history)
-            plot_predictions(model, dataset.subset("val"), begin=600, end=610)
+        Figure(subplots=[Image(image=image, mask=image.masks[..., 1], draw_boxes=True)])
+        tile = next(iter(train_subset))[0]
+        Figure("tiles", [Image(tile), *(Mask(tile.masks[..., i]) for i in range(3))])
+
+        # history = model.train(train_subset, val_subset)
+
+        # Figure(f"graph_losses_{TODAY}", [Loss(history)])
 
     if args.test:
         results = model.test(dataset.subset("test"))
-        if args.plot:
-            plot_test_results(results)
+
+        image = next(iter(dataset.subset("test").imgs.values()))
+        pred = model.predict([image])
+        Figure(
+            "predictions",
+            [
+                Image(image),
+                Mask(image.masks[..., 1]),
+                *(Mask(pred[..., i]) for i in range(3)),
+            ],
+        )
+        Figure(
+            "predictions_with_images",
+            [Image(image.without_background(), mask=pred[..., i]) for i in range(3)],
+        )
+
+    wait_for_figures()
 
 
 if __name__ == "__main__":

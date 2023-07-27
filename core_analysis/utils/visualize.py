@@ -10,128 +10,133 @@ from core_analysis.utils.transform import adjust_rgb
 from core_analysis.utils.constants import TODAY, PLOT_DIR
 
 
-def plot_masks(images, masks, cat_names):
-    for i in range(3):
-        _, axs = plt.subplots(1, 4, figsize=(8, 4))
+class Figure:
+    DIR = PLOT_DIR
+    SAVE_DPI = 200
+    SHOW_DPI = 200
 
-        axs[0].axis("off")
-        axs[0].imshow(images[i], vmin=0, vmax=1)
-        for j in range(3):
-            axs[j + 1].imshow(masks[i, :, :, j], cmap="jet", interpolation="spline16")
-            axs[j + 1].set_title(cat_names[j])
-            axs[j + 1].axis("off")
-        plt.savefig(
-            join(PLOT_DIR, f"image_tiles_masks_{i}.png"),
-            dpi=300,
-            bbox_inches="tight",
+    def __init__(self, *, filename=None, subplots):
+        self.filename = f"{filename}.pdf" if filename is not None else None
+        self.subplots = np.array(subplots)
+        if self.subplots.ndim < 2:
+            self.subplots = self.subplots.reshape(1, -1)
+        self.nrows, self.ncols = self.subplots.shape
+        self.fig, self.axs = plt.subplots(
+            nrows=self.nrows,
+            ncols=self.ncols,
+            squeeze=False,
+            dpi=self.SHOW_DPI,
         )
+        self.plot()
+        self.show()
+        if self.filename is not None:
+            self.save()
+
+    @property
+    def filepath(self):
+        return join(self.DIR, self.filename)
+
+    def generate(self, gpus):
+        with self.Metadata(gpus) as data:
+            self.plot(data)
+
+    def save(self, show=True):
+        self.fig.savefig(self.filepath, transparent=True, dpi=self.SAVE_DPI)
+
+    def plot(self):
+        for subplot, ax in zip(self.subplots.flatten(), self.axs.flatten()):
+            subplot.plot(ax)
+
+    def format(self):
+        for subplot, ax in zip(self.subplots.flatten(), self.axs.flatten()):
+            subplot.format(ax)
+
+    def show(self):
+        plt.show(block=False)
 
 
-def plot_image_and_mask(image):
-    print("Image ID:", image.id)
+class Subplot:
+    def __init__(self, *items):
+        self.items = items
 
-    _, axs = plt.subplots(1, 2, figsize=(20, 10))
+    def plot(self, ax):
+        raise NotImplementedError
 
-    # Draw boxes and add label to each box.
-    for ann in image.annotations:
-        box = ann["bbox"]
-        bb = patches.Rectangle(
-            (box[0], box[1]),
-            box[2],
-            box[3],
-            linewidth=2,
-            edgecolor="blue",
-            facecolor="none",
-        )
-        axs[0].add_patch(bb)
-
-    axs[0].imshow(adjust_rgb(image.data, 2, 98))
-    axs[0].set_aspect(1)
-    axs[0].axis("off")
-    axs[0].set_title("Image", fontsize=12)
-
-    axs[1].imshow(np.argmax(image.masks[..., 2], -1), cmap="Dark2")
-    axs[1].set_aspect(1)
-    axs[1].axis("off")
-    axs[1].set_title("Masque", fontsize=12)
-
-    plt.savefig(join(PLOT_DIR, "image_masque.png"), dpi=300, bbox_inches="tight")
-    plt.show()
+    def format(self, ax):
+        pass
 
 
-def plot_image_with_mask(image, mask):
-    plt.figure(figsize=(12, 12))
-    plt.imshow(adjust_rgb(image.data, 2, 98))
-    plt.imshow(np.where(mask > 0, 1, np.nan), cmap="viridis", alpha=0.5)
-    plt.axis("scaled")
-    plt.axis("off")
-    plt.show()
+class Image(Subplot):
+    def __init__(self, image, mask=None, adjust_rgb=True, draw_boxes=False):
+        self.image = image
+        self.mask = mask
+        self.do_adjust_rgb = adjust_rgb
+        self.do_draw_boxes = draw_boxes
+
+    def plot(self, ax):
+        image = self.image.data
+        if self.do_adjust_rgb:
+            image = adjust_rgb(image, 2, 98)
+        ax.imshow(image, vmin=0, vmax=1)
+        if self.mask is not None:
+            ax.imshow(np.where(self.mask > 0, 1, np.nan), cmap="viridis", alpha=0.5)
+        if self.do_draw_boxes:
+            self.draw_boxes()
+
+    def format(self):
+        self.ax.set_axis_off()
+        self.ax.set_aspect("equal")
+
+    def draw_boxes(self):
+        _, anns = self.image.get_annotations()
+        for ann in anns:
+            box = ann["bbox"]
+            bb = patches.Rectangle(
+                (box[0], box[1]),
+                box[2],
+                box[3],
+                linewidth=2,
+                edgecolor="blue",
+                facecolor="none",
+            )
+            self.ax.add_patch(bb)
 
 
-def plot_inputs(images, qty=1):
-    ids = list(images.keys())
-    ids = np.random.choice(ids, qty)
-    for id in ids:
-        image = images[id]
-        _, axs = plt.subplots(1, 4, figsize=(12, 4))
-        axs[0].imshow(adjust_rgb(image.data, 2, 98))
-        axs[0].axis("off")
-        for i in range(3):
-            axs[i + 1].imshow(image.masks[:, :, i])
-            axs[i + 1].axis("off")
-        plt.show()
+class Mask(Subplot):
+    def __init__(self, mask):
+        self.mask = mask
+
+    def plot(self, ax):
+        ax.imshow(self.mask, cmap="jet", interpolation="spline16")
+
+    def format(self):
+        self.ax.set_axis_off()
+        self.ax.set_aspect("equal")
+        self.ax.set_title(self.cat_name)
 
 
-def plot_loss(history):
-    plt.plot(history.history["loss"])
-    plt.plot(history.history["val_loss"])
-    plt.title("Loss")
-    plt.ylabel("loss")
-    plt.xlabel("epoch")
-    plt.legend(["train", "test"], loc="upper left")
-    plt.savefig(
-        join(PLOT_DIR, f"graph_losses_{TODAY}.png"), dpi=300, bbox_inches="tight"
-    )
-    plt.show()
+class Loss(Subplot):
+    def __init__(self, history):
+        self.history = history
+
+    def plot(self, ax):
+        ax.plot(self.history.history["loss"])
+        ax.plot(self.history.history["val_loss"])
+        ax.set_title("Loss")
+        ax.set_ylabel("loss")
+        ax.set_xlabel("epoch")
+        ax.legend(["train", "test"], loc="upper left")
+
+    def format(self):
+        pass
 
 
-def plot_predictions(model, images, labels, begin=None, end=None):
-    pred_probs = model.predict(images[begin:end])
-
-    for n, i in enumerate(range(begin, end)):
-        _, axs = plt.subplots(1, 5, figsize=(15, 6))
-
-        axs[0].imshow(adjust_rgb(images[i].data, 10, 90))
-        axs[0].axis("off")
-        axs[1].imshow(labels[i, :, :, 1], cmap="plasma", vmin=0, vmax=1)
-        axs[1].axis("off")
-        for i in range(3):
-            axs[i + 2].imshow(pred_probs[n, :, :, i], cmap="plasma", vmin=0, vmax=1)
-            axs[i + 2].axis("off")
-        plt.show()
+def turn_plot_off():
+    plt.show = lambda *args, **kwargs: None
+    Figure.show = lambda *args, **kwargs: None
+    Figure.plot = lambda *args, **kwargs: None
 
 
-def plot_test_results(images, results):
-    y = np.arange(results.shape[0])
-    x = np.arange(results.shape[1])
-    x, y = np.meshgrid(x, y)
-
-    for c in range(results.shape[-1]):
-        image = image.without_background()
-        fig, ax = plt.subplots(figsize=(15, 15))
-        ax.imshow(adjust_rgb(images.data, 5, 99), zorder=0)
-        ax.pcolormesh(
-            x,
-            y,
-            np.where(results[:, :, c] > 0.9, 1.0, np.nan),
-            cmap="plasma",
-            vmin=0.3,
-            vmax=1.0,
-            alpha=0.7,
-            zorder=1,
-        )
-        plt.xlim(70, 2300)
-        plt.ylim(200, 1800)
-        plt.axis("off")
-        plt.savefig(join(PLOT_DIR, f"pred_{c}.png"), dpi=300, bbox_inches="tight")
-        plt.show()
+def wait_for_figures():
+    while plt.get_fignums():
+        plt.pause(5)
