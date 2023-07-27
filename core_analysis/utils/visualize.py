@@ -52,7 +52,7 @@ class Figure:
             subplot.format(ax)
 
     def show(self):
-        plt.show(block=False)
+        plt.show()
 
 
 class Subplot:
@@ -132,11 +132,5 @@ class Loss(Subplot):
 
 
 def turn_plot_off():
-    plt.show = lambda *args, **kwargs: None
     Figure.show = lambda *args, **kwargs: None
     Figure.plot = lambda *args, **kwargs: None
-
-
-def wait_for_figures():
-    while plt.get_fignums():
-        plt.pause(5)
