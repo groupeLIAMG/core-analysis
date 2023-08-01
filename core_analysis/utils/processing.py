@@ -4,6 +4,7 @@ from os import makedirs
 from os.path import split, exists, splitext
 
 import numpy as np
+from matplotlib import pyplot as plt
 from h5py import File
 
 
@@ -50,3 +51,4 @@ def automatically_makedirs(function):
 
 
 np.save = automatically_makedirs(np.save)
+plt.savefig = automatically_makedirs(plt.savefig)
