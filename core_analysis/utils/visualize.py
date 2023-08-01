@@ -28,6 +28,7 @@ class Figure:
             dpi=self.SHOW_DPI,
         )
         self.plot()
+        self.format()
         self.show()
         if self.filename is not None:
             self.save()
@@ -74,18 +75,25 @@ class Image(Subplot):
         self.do_draw_boxes = draw_boxes
 
     def plot(self, ax):
-        image = self.image.data
+        image = self.image
+        if not isinstance(image, np.ndarray):
+            image = image.data
         if self.do_adjust_rgb:
             image = adjust_rgb(image, 2, 98)
-        ax.imshow(image, vmin=0, vmax=1)
+        ax.imshow(image, vmin=0, vmax=1, zorder=0)
         if self.mask is not None:
-            ax.imshow(np.where(self.mask > 0, 1, np.nan), cmap="viridis", alpha=0.5)
+            ax.imshow(
+                np.where(self.mask > 0, 1, np.nan),
+                cmap="viridis",
+                alpha=0.6,
+                zorder=1,
+            )
         if self.do_draw_boxes:
             self.draw_boxes()
 
-    def format(self):
-        self.ax.set_axis_off()
-        self.ax.set_aspect("equal")
+    def format(self, ax):
+        ax.set_axis_off()
+        ax.set_aspect("equal")
 
     def draw_boxes(self):
         _, anns = self.image.get_annotations()
@@ -109,10 +117,10 @@ class Mask(Subplot):
     def plot(self, ax):
         ax.imshow(self.mask, cmap="jet", interpolation="spline16")
 
-    def format(self):
-        self.ax.set_axis_off()
-        self.ax.set_aspect("equal")
-        self.ax.set_title(self.cat_name)
+    def format(self, ax):
+        ax.set_axis_off()
+        ax.set_aspect("equal")
+        # ax.set_title(self.cat_name)
 
 
 class Loss(Subplot):
