@@ -12,7 +12,6 @@ from core_analysis.utils.visualize import (
     Image,
     Mask,
     Loss,
-    wait_for_figures,
 )
 from core_analysis.utils.constants import MODEL_FILENAME, LABELS_PATH, TODAY
 
@@ -53,12 +52,15 @@ def main(args):
             ],
         )
         Figure(subplots=[Image(image=image, mask=image.masks[..., 1], draw_boxes=True)])
-        tile = next(iter(train_subset))[0]
-        Figure("tiles", [Image(tile), *(Mask(tile.masks[..., i]) for i in range(3))])
+        patches, masks = next(iter(train_subset))
+        Figure(
+            filename="tiles",
+            subplots=[Image(patches[0]), *(Mask(masks[0, ..., i]) for i in range(3))],
+        )
 
-        # history = model.train(train_subset, val_subset)
+        history = model.train(train_subset, val_subset)
 
-        # Figure(f"graph_losses_{TODAY}", [Loss(history)])
+        Figure(f"graph_losses_{TODAY}", [Loss(history)])
 
     if args.test:
         results = model.test(dataset.subset("test"))
@@ -77,8 +79,6 @@ def main(args):
             "predictions_with_images",
             [Image(image.without_background(), mask=pred[..., i]) for i in range(3)],
         )
-
-    wait_for_figures()
 
 
 if __name__ == "__main__":
