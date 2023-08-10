@@ -13,12 +13,12 @@ from PIL.Image import open
 from PIL.ImageOps import exif_transpose
 import segmentation_models as sm
 from pycocotools.coco import COCO
+from scipy.ndimage import maximum_filter
 
 from core_analysis.architecture import Model
 from core_analysis.preprocess import unbox
-from core_analysis.utils.constants import BATCH_SIZE, IMAGE_DIR, DIM
+from core_analysis.utils.constants import IMAGE_DIR, DIM
 from core_analysis.utils.transform import augment
-from core_analysis.utils.visualize import plot_inputs
 from core_analysis.utils.processing import stored_property, saved_array_property
 
 preprocess_input = sm.get_preprocessing(Model.BACKBONE)
@@ -28,21 +28,21 @@ class Dataset(COCO):
     CAT_IDS = [1, 2, 3]
     CAT_NAMES = ["FRACTURES", "VEINS", "REALGAR"]
     VAL_PERCENT = 0.1
+    DO_AUGMENT = True
+    BATCH_SIZE = 16
+    N_PATCHES = 8600
 
     def __init__(self, label_path):
         super().__init__(label_path)
         self.imgs = {
             img_id: Image(img_id, self, info) for img_id, info in self.imgs.items()
         }
-        plot_inputs(self.imgs)
 
     def subset(self, mode):
         subset = copy(self)
 
         if mode in ["train", "val"]:
-            subset_ids = [
-                image.id for image in subset.imgs.values() if image.masks.any()
-            ]
+            subset_ids = [image.id for image in subset.imgs.values() if image.is_train]
             val_size = int(len(subset_ids) * self.VAL_PERCENT)
             seed(0)
             val_ids = choice(subset_ids, val_size)
@@ -52,90 +52,83 @@ class Dataset(COCO):
                 subset_ids = val_ids
         elif mode == "test":
             subset_ids = {
-                image.id for image in subset.imgs.values() if not image.masks.any()
+                image.id for image in subset.imgs.values() if not image.is_train
             }
         else:
             raise ValueError(f"Unknown mode: {mode}")
 
-        subset.images = {img_id: subset.imgs[img_id] for img_id in subset_ids}
+        subset.imgs = {img_id: subset.imgs[img_id] for img_id in subset_ids}
         return subset
-
-    # def save(self):
-    #     for image in self.images.values():
-    #         image.save_info()
 
     def __iter__(self):
         batches_idx = permutation(self.all_patches)
         # TODO: Split into balanced batches.
-        batches_idx = np.array_split(
-            self.all_patches, len(self.all_patches) // BATCH_SIZE
-        )
+        n_batches = len(batches_idx) // self.BATCH_SIZE
+        batches_idx = batches_idx[: n_batches * self.BATCH_SIZE]
+        batches_idx = np.split(batches_idx, n_batches)
+        batches_idx = np.array(batches_idx)
         for batch_idx in batches_idx:
-            patches = []
-            for i, j in batch_idx:
-                patches.append(self.imgs[i].get_patch(j))
-            patches = np.array(patches)
-            patches = self.preprocess(patches)
-            yield patches
-
-    # def __getitem__(self):
-    #     counts = np.unique(np.concatenate([[0, 1, 2]]), return_counts=True)[1]
-
-    #     return [Image(id) for id in batch_idx]
+            patches = np.empty([len(batch_idx), *DIM], dtype=np.float32)
+            masks = np.empty(
+                [len(batch_idx), *DIM[:2], len(self.CAT_IDS)], dtype=np.float32
+            )
+            for i, (img_id, patch_id) in enumerate(batch_idx):
+                patch = self.imgs[img_id].get_patch(patch_id)
+                patch, mask = self.preprocess(patch)
+                patches[i] = patch.astype(np.float32)
+                masks[i] = mask.astype(np.float32)
+            if self.DO_AUGMENT:
+                patches, masks = augment(
+                    images=patches,
+                    heatmaps=masks,
+                )
+            yield patches, masks
 
     @stored_property
     def all_patches(self):
         return np.array(
-            [(i, j) for i, img in self.imgs.items() for j in range(len(img.patches))]
+            [(i, j) for i, img in self.imgs.items() for j in range(len(img.patches_ij))]
         )
 
-    def preprocess(patch, do_augment=True):
+    def preprocess(self, patch):
         patch = patch.without_background()
-        patch = preprocess_input(patch)
-        if do_augment:
-            patch.image[:], patch.masks = augment(
-                images=patch,
-                heatmaps=patch.masks,
-            )
-
-        return patch
+        data = patch.data[:]
+        masks = patch.masks[:]
+        data = preprocess_input(data)
+        return data, masks
 
 
-class Image(np.ndarray):
-    def __new__(cls, path, dataset, info=None):
-        if isinstance(path, int):  # Path is actually a COCO image ID.
-            path = cls.convert_id_to_path(None, path, dataset)
-        data = cls._open(None, path)
-        self = np.asarray(data).view(cls)
+class Image:
+    def __init__(self, path, dataset, info=None):
+        if isinstance(path, int):
+            path = self.convert_id_to_path(path, dataset)
         self.dir, self.filename = split(path)
         self.path = path
         self.dataset = dataset
         self.info = info
-        return self
 
     @classmethod
     def open(cls, path, dataset, info=None):
-        # Alias for `__new__`.
         return cls(path, dataset, info)
 
     def __getitem__(self, idx):
         if isinstance(idx, str):
             return self.info[idx]
-
-        item = copy(super().__getitem__(idx))
-        if hasattr(item, "background"):
-            item.background = item.background[idx]
-        if hasattr(item, "masks"):
-            item.masks = item.masks[idx]
-        return item
+        else:
+            return self.data[idx]
 
     def __repr__(self):
         return str(self.info)
 
-    def _open(self, path):
-        data = open(path)
+    @saved_array_property
+    def data(self):
+        data = open(self.path)
         data = exif_transpose(data)
-        return data
+        return np.array(data)
+
+    @property
+    def shape(self):
+        return self["height"], self["width"], 3
 
     def convert_id_to_path(self, id, dataset=None):
         if dataset is None:
@@ -151,23 +144,30 @@ class Image(np.ndarray):
         file_idx = filenames.index(self.filename)
         return list(self.dataset.imgs.keys())[file_idx]
 
+    @stored_property
+    def is_train(self):
+        if self.dataset.getAnnIds(imgIds=self.id, catIds=self.dataset.CAT_IDS):
+            return True
+        else:
+            return False
+
     @saved_array_property
     def background(self):
         return unbox(self)
 
     @saved_array_property
     def masks(self):
-        masks, _ = self.get_annotations(self.dataset)
+        masks, _ = self.get_annotations()
         return masks
 
-    def get_annotations(self, coco):
+    def get_annotations(self):
         masks = np.zeros([*self.shape[:2], len(self.dataset.CAT_IDS)], dtype=bool)
         annotations = []
         for i, cid in enumerate(self.dataset.CAT_IDS):
-            annotation_ids = coco.getAnnIds(imgIds=self.id, catIds=cid)
-            annotations = coco.loadAnns(annotation_ids)
+            annotation_ids = self.dataset.getAnnIds(imgIds=self.id, catIds=cid)
+            annotations = self.dataset.loadAnns(annotation_ids)
             for annotation in annotations:
-                mask = coco.annToMask(annotation)
+                mask = self.dataset.annToMask(annotation)
                 mask = mask.astype(bool)
                 masks[mask, i] = True
             annotations += annotations
@@ -178,16 +178,30 @@ class Image(np.ndarray):
         # TODO: Apply to masks as well.
         return View(self, get_op=lambda view: np.where(view.background, 0, view))
 
-    @stored_property
-    def patches(self):
-        patches = []
-        for i in range(self.shape[0] - DIM[0]):
-            for j in range(self.shape[1] - DIM[1]):
-                if not self.background[i + DIM[0] // 2, j + DIM[1] // 2]:
-                    classes = self.masks[i : i + DIM[0], j : j + DIM[1]]
-                    patch = Patch(self, i, j, classes)
-                    patches.append(patch)
-        return patches
+    @saved_array_property
+    def patches_ij(self):
+        patches_ij = np.meshgrid(
+            np.arange(self.shape[0] - DIM[0]),
+            np.arange(self.shape[1] - DIM[1]),
+            indexing="ij",
+        )
+        patches_ij = np.moveaxis(patches_ij, 0, -1)
+
+        has_label = self.masks.any(axis=-1)
+        has_label = maximum_filter(has_label, size=DIM[:2], output=bool)
+        is_valid = ~self.background & has_label
+        is_valid = is_valid[
+            DIM[0] // 2 : -DIM[0] // 2 - DIM[0] % 2,
+            DIM[1] // 2 : -DIM[1] // 2 - DIM[0] % 2,
+        ]
+        patches_ij = patches_ij[is_valid]
+
+        return patches_ij
+
+    def get_patch(self, idx):
+        i, j = self.patches_ij[idx]
+        classes = self.masks[i : i + DIM[0], j : j + DIM[1]]
+        return Patch(self, i, j, classes)
 
 
 class View:
@@ -199,8 +213,8 @@ class View:
         self.set_op = set_op
 
     def __getitem__(self, idx):
-        view = self.image[idx]
-        view = self.get_op(view)
+        view = self.get_op(self.image)
+        view = view[idx]
         return view
 
     def __setitem__(self, idx, value):
@@ -220,6 +234,32 @@ class View:
 
     def __exit__(self, exc_type, exc_value, traceback):
         pass
+
+    def without_background(self):
+        return View(
+            self,
+            get_op=lambda view: np.where(
+                self.background[..., None], [0] * DIM[-1], view
+            ),
+        )
+
+    @property
+    def background(self):
+        background = self.image.background
+        background = self.get_op(background)
+        return background
+
+    @property
+    def masks(self):
+        masks = self.image.masks
+        masks = self.get_op(masks)
+        return masks
+
+    @property
+    def data(self):
+        data = self.image.data
+        data = self.get_op(data)
+        return data
 
 
 class Patch(View):

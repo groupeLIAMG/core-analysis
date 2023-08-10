@@ -19,8 +19,8 @@ def unbox(original_image, batches_num=1000, threshold=0.6):
     image = cv2.bilateralFilter(image, d=15, sigmaColor=55, sigmaSpace=35)
 
     pred_tile = predict_tiles(model, merge_func=np.max, reflect=True)
-    pred_tile.create_batches(image, DIM, step=int(DIM[0]), n_classes=1)
-    pred_tile.predict(batches_num=batches_num, coords_channels=False)
+    pred_tile.create_batches(image, DIM, overlap_ratio=0, n_classes=1)
+    pred_tile.predict(batches_num=batches_num)
     result = pred_tile.merge()
 
     result = upsample(result, original_image.shape)

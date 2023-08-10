@@ -6,8 +6,14 @@ import tensorflow as tf
 
 from core_analysis.dataset import Dataset
 from core_analysis.architecture import Model
-from core_analysis.utils.visualize import plot_loss, plot_predictions, plot_test_results
-from core_analysis.utils.constants import MODEL_FILENAME, LABELS_PATH
+from core_analysis.utils.visualize import (
+    turn_plot_off,
+    Figure,
+    Image,
+    Mask,
+    Loss,
+)
+from core_analysis.utils.constants import MODEL_FILENAME, LABELS_PATH, TODAY
 
 
 # Check the number of available GPUs.
@@ -23,25 +29,59 @@ parser.add_argument("--train", action="store_true")
 parser.add_argument("--test", action="store_true")
 parser.add_argument("-p", "--plot", action="store_true")
 parser.add_argument("-w", "--weights-filename", default=MODEL_FILENAME)
-parser.add_argument("-a", "--do_augment", action="store_true")
+parser.add_argument("-a", "--do-augment", action="store_true")
+parser.add_argument("-e", "--run-eagerly", action="store_true")
 
 
 def main(args):
-    model = Model()
+    if not args.plot:
+        turn_plot_off()
+
+    model = Model(args.weights_filename, args.run_eagerly)
     dataset = Dataset(LABELS_PATH)
 
     if args.train:
-        history = model.train(
-            dataset.subset("train"), dataset.subset("val"), args.weights_filename
+        train_subset = dataset.subset("train")
+        val_subset = dataset.subset("val")
+
+        image = next(iter(train_subset.imgs.values()))
+        Figure(
+            filename="image_masks",
+            subplots=[
+                Image(image, draw_boxes=True),
+                *(Mask(image.masks[..., i]) for i in range(3)),
+            ],
         )
-        if args.plot:
-            plot_loss(history)
-            plot_predictions(model, dataset.subset("val"), begin=600, end=610)
+        Figure(subplots=[Image(image=image, mask=image.masks[..., 1], draw_boxes=True)])
+        patches, masks = next(iter(train_subset))
+        Figure(
+            filename="tiles",
+            subplots=[Image(patches[0]), *(Mask(masks[0, ..., i]) for i in range(3))],
+        )
+
+        history = model.train(train_subset, val_subset)
+
+        Figure(filename=f"graph_losses_{TODAY}", subplots=[Loss(history)])
 
     if args.test:
         results = model.test(dataset.subset("test"))
-        if args.plot:
-            plot_test_results(results)
+
+        image = next(iter(dataset.subset("test").imgs.values()))
+        pred = model.predict([image])
+        Figure(
+            filename="predictions",
+            subplots=[
+                Image(image),
+                Mask(image.masks[..., 1]),
+                *(Mask(pred[..., i]) for i in range(3)),
+            ],
+        )
+        Figure(
+            filename="predictions_with_images",
+            subplots=[
+                Image(image.without_background(), mask=pred[..., i]) for i in range(3)
+            ],
+        )
 
 
 if __name__ == "__main__":

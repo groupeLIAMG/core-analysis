@@ -7,8 +7,7 @@ os.environ["SM_FRAMEWORK"] = "tf.keras"
 
 import numpy as np
 import tensorflow as tf
-from keras import callbacks
-from keras import backend as K
+from keras import callback
 import segmentation_models as sm
 
 from core_analysis.postprocess import predict_tiles
@@ -20,12 +19,14 @@ from core_analysis.utils.constants import (
     TODAY,
 )
 
+tf.sum = tf.reduce_sum
+
 
 class Model:
     BACKBONE = "efficientnetb7"
-    BATCH_SIZE = 16
+    EPOCHS = 100
 
-    def __init__(self, weights_filename=None):
+    def __init__(self, weights_filename=None, run_eagerly=False):
         if weights_filename is not None:
             self.model = tf.keras.models.load_model(
                 join(MODEL_DIR, weights_filename),
@@ -46,9 +47,10 @@ class Model:
             optimizer=optimizer,
             loss=loss.contrastive_loss,
             metrics=["acc"],
+            run_eagerly=run_eagerly,
         )
 
-    def train(self, train_iterator, val_iterator):
+    def train(self, train_dataset, val_dataset):
         checkpoint_filename = f"linknet_{self.BACKBONE}_weights_{TODAY}.h5"
         checkpointer = callbacks.ModelCheckpoint(
             filepath=join(MODEL_DIR, checkpoint_filename),
@@ -62,13 +64,16 @@ class Model:
             min_delta=10e-4,
             patience=50,
         )
+        batch_size = train_dataset.BATCH_SIZE
+        steps_per_epoch = self.N_PATCHES // batch_size
+        val_steps_per_epoch = steps_per_epoch // 50
         history = self.model.fit(
-            X_train,
-            Y_train,
-            batch_size=self.BATCH_SIZE,
-            validation_data=(X_test, Y_test),
+            iter(train_dataset),
+            validation_data=iter(val_dataset),
+            epochs=self.EPOCHS,
+            steps_per_epoch=steps_per_epoch,
+            validation_steps=val_steps_per_epoch,
             callbacks=[checkpointer, early_stopping],
-            epochs=250,
         )
         return history
 
@@ -90,7 +95,7 @@ class masked_loss:
 
     def masked_rmse(self, y_true, y_pred):
         # Distance between the predictions and simulation probabilities.
-        squared_diff = K.square(y_true - y_pred)
+        squared_diff = (y_true - y_pred) ** 2
 
         # Give different weights by class.
         if self.use_weights:
@@ -101,31 +106,25 @@ class masked_loss:
 
         # Take some of the training points out at random.
         if self.hold_out > 0:
-            mask *= tf.where(
-                tf.random.uniform(
-                    shape=(1, *squared_diff.shape[1:]), minval=0.0, maxval=1.0
-                )
-                > self.hold_out,
-                1.0,
-                0.0,
+            random = tf.random.uniform(
+                shape=[1, *DIM[:2], N_CLASSES], minval=0.0, maxval=1.0
             )
+            mask *= tf.where(random > self.hold_out, 1.0, 0.0)
 
-        denominator = K.sum(mask)  # Number of pixels.
+        denominator = tf.sum(mask)  # Number of pixels.
         if self.use_weights:
-            denominator = K.sum(mask * self.wmatrix)
+            denominator = tf.sum(mask * self.wmatrix)
 
-        # Sum of squared differences at sampled locations,
-        summ = K.sum(squared_diff * mask)
-        # Compute error,
-        rmse = K.sqrt(summ / denominator)
+        # Compute error.
+        rmse = tf.sqrt(tf.sum(squared_diff * mask) / denominator)
 
         return rmse
 
     def dice_loss(self, y_true, y_pred):
         # Dice coefficient loss.
         y_pred = tf.cast(y_pred > 0.5, dtype=tf.float32)
-        intersection = K.sum(y_true * y_pred, axis=[1, 2, 3])
-        union = K.sum(y_true + y_pred, axis=[1, 2, 3]) - intersection
+        intersection = tf.sum(y_true * y_pred, axis=[1, 2, 3])
+        union = tf.sum(y_true + y_pred, axis=[1, 2, 3]) - intersection
         dice_loss = 1.0 - (2.0 * intersection + 1.0) / (union + 1.0)
 
         return dice_loss
