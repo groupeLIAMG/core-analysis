@@ -211,8 +211,8 @@ class View:
         self.set_op = set_op
 
     def __getitem__(self, idx):
-        view = self.image[idx]
-        view = self.get_op(view)
+        view = self.get_op(self.image)
+        view = view[idx]
         return view
 
     def __setitem__(self, idx, value):
@@ -232,6 +232,32 @@ class View:
 
     def __exit__(self, exc_type, exc_value, traceback):
         pass
+
+    def without_background(self):
+        return View(
+            self,
+            get_op=lambda view: np.where(
+                self.background[..., None], [0] * DIM[-1], view
+            ),
+        )
+
+    @property
+    def background(self):
+        background = self.image.background
+        background = self.get_op(background)
+        return background
+
+    @property
+    def masks(self):
+        masks = self.image.masks
+        masks = self.get_op(masks)
+        return masks
+
+    @property
+    def data(self):
+        data = self.image.data
+        data = self.get_op(data)
+        return data
 
 
 class Patch(View):
