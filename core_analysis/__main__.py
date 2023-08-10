@@ -29,14 +29,15 @@ parser.add_argument("--train", action="store_true")
 parser.add_argument("--test", action="store_true")
 parser.add_argument("-p", "--plot", action="store_true")
 parser.add_argument("-w", "--weights-filename", default=MODEL_FILENAME)
-parser.add_argument("-a", "--do_augment", action="store_true")
+parser.add_argument("-a", "--do-augment", action="store_true")
+parser.add_argument("-e", "--run-eagerly", action="store_true")
 
 
 def main(args):
     if not args.plot:
         turn_plot_off()
 
-    model = Model(args.weights_filename)
+    model = Model(args.weights_filename, args.run_eagerly)
     dataset = Dataset(LABELS_PATH)
 
     if args.train:

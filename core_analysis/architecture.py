@@ -26,7 +26,7 @@ class Model:
     BACKBONE = "efficientnetb7"
     EPOCHS = 100
 
-    def __init__(self, weights_filename=None):
+    def __init__(self, weights_filename=None, run_eagerly=False):
         if weights_filename is not None:
             self.model = tf.keras.models.load_model(
                 join(MODEL_DIR, weights_filename),
@@ -47,6 +47,7 @@ class Model:
             optimizer=optimizer,
             loss=loss.contrastive_loss,
             metrics=["acc"],
+            run_eagerly=run_eagerly,
         )
 
     def train(self, train_iterator, val_iterator):
