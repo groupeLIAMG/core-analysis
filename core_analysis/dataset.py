@@ -18,7 +18,6 @@ from core_analysis.architecture import Model
 from core_analysis.preprocess import unbox
 from core_analysis.utils.constants import IMAGE_DIR, DIM
 from core_analysis.utils.transform import augment
-from core_analysis.utils.visualize import plot_inputs
 from core_analysis.utils.processing import stored_property, saved_array_property
 
 preprocess_input = sm.get_preprocessing(Model.BACKBONE)
@@ -35,7 +34,6 @@ class Dataset(COCO):
         self.imgs = {
             img_id: Image(img_id, self, info) for img_id, info in self.imgs.items()
         }
-        plot_inputs(self.imgs)
 
     def subset(self, mode):
         subset = copy(self)
