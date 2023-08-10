@@ -8,19 +8,21 @@ with open("README.md", "r") as fh:
 
 GITHUB_REQUIREMENT = "{name} @ git+https://github.com/{author}/{name}.git"
 REQUIREMENTS = [
+    "cython",
     "segmentation-models",
-    GITHUB_REQUIREMENT.format(
-        author="lucasb-eyer",
-        name="pydensecrf",
-    ),
+    "pydensecrf",
+    # GITHUB_REQUIREMENT.format(
+    #     author="berkeley-hipie",
+    #     name="HIPIE",
+    # ),
     "imgaug",
-    "proplot",
     "pycocotools",
     "pillow",
-    "tensorflow==2.13.0",
+    "tensorflow==2.11.0",
     "opencv-python",
     "numpy",
     "h5py",
+    "inflection",
 ]
 
 setup(
@@ -40,5 +42,5 @@ setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
     ],
-    python_requires=">=3.11",
+    python_requires="==3.7.16",
 )
