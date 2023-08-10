@@ -50,7 +50,7 @@ class Model:
             run_eagerly=run_eagerly,
         )
 
-    def train(self, train_iterator, val_iterator):
+    def train(self, train_dataset, val_dataset):
         checkpoint_filename = f"linknet_{self.BACKBONE}_weights_{TODAY}.h5"
         checkpointer = callbacks.ModelCheckpoint(
             filepath=join(MODEL_DIR, checkpoint_filename),
@@ -68,7 +68,11 @@ class Model:
         steps_per_epoch = self.N_PATCHES // batch_size
         val_steps_per_epoch = steps_per_epoch // 50
         history = self.model.fit(
+            iter(train_dataset),
+            validation_data=iter(val_dataset),
             epochs=self.EPOCHS,
+            steps_per_epoch=steps_per_epoch,
+            validation_steps=val_steps_per_epoch,
             callbacks=[checkpointer, early_stopping],
         )
         return history
