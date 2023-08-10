@@ -7,8 +7,7 @@ os.environ["SM_FRAMEWORK"] = "tf.keras"
 
 import numpy as np
 import tensorflow as tf
-from keras import callbacks
-from keras import backend as K
+from keras import callback
 import segmentation_models as sm
 
 from core_analysis.postprocess import predict_tiles
@@ -19,6 +18,8 @@ from core_analysis.utils.constants import (
     LR,
     TODAY,
 )
+
+tf.sum = tf.reduce_sum
 
 
 class Model:
@@ -89,7 +90,7 @@ class masked_loss:
 
     def masked_rmse(self, y_true, y_pred):
         # Distance between the predictions and simulation probabilities.
-        squared_diff = K.square(y_true - y_pred)
+        squared_diff = (y_true - y_pred) ** 2
 
         # Give different weights by class.
         if self.use_weights:
@@ -100,31 +101,25 @@ class masked_loss:
 
         # Take some of the training points out at random.
         if self.hold_out > 0:
-            mask *= tf.where(
-                tf.random.uniform(
-                    shape=(1, *squared_diff.shape[1:]), minval=0.0, maxval=1.0
-                )
-                > self.hold_out,
-                1.0,
-                0.0,
+            random = tf.random.uniform(
+                shape=[1, *DIM[:2], N_CLASSES], minval=0.0, maxval=1.0
             )
+            mask *= tf.where(random > self.hold_out, 1.0, 0.0)
 
-        denominator = K.sum(mask)  # Number of pixels.
+        denominator = tf.sum(mask)  # Number of pixels.
         if self.use_weights:
-            denominator = K.sum(mask * self.wmatrix)
+            denominator = tf.sum(mask * self.wmatrix)
 
-        # Sum of squared differences at sampled locations,
-        summ = K.sum(squared_diff * mask)
-        # Compute error,
-        rmse = K.sqrt(summ / denominator)
+        # Compute error.
+        rmse = tf.sqrt(tf.sum(squared_diff * mask) / denominator)
 
         return rmse
 
     def dice_loss(self, y_true, y_pred):
         # Dice coefficient loss.
         y_pred = tf.cast(y_pred > 0.5, dtype=tf.float32)
-        intersection = K.sum(y_true * y_pred, axis=[1, 2, 3])
-        union = K.sum(y_true + y_pred, axis=[1, 2, 3]) - intersection
+        intersection = tf.sum(y_true * y_pred, axis=[1, 2, 3])
+        union = tf.sum(y_true + y_pred, axis=[1, 2, 3]) - intersection
         dice_loss = 1.0 - (2.0 * intersection + 1.0) / (union + 1.0)
 
         return dice_loss
