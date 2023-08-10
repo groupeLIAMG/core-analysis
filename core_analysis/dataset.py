@@ -28,7 +28,9 @@ class Dataset(COCO):
     CAT_IDS = [1, 2, 3]
     CAT_NAMES = ["FRACTURES", "VEINS", "REALGAR"]
     VAL_PERCENT = 0.1
+    DO_AUGMENT = True
     BATCH_SIZE = 16
+    N_PATCHES = 8600
 
     def __init__(self, label_path):
         super().__init__(label_path)
