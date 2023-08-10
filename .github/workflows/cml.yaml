@@ -5,11 +5,8 @@ jobs:
     runs-on: ubuntu-latest
     container:
         image: python:3.7.16
-        variables:
+        env:
           CML: https://github.com/iterative/cml/releases/latest/download/cml-linux-x64
-        script:
-          - curl --location $CML --output /bin/cml
-          - chmod 755 /bin/cml
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
@@ -18,6 +15,9 @@ jobs:
         env:
           REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          curl --location $CML --output /bin/cml
+          chmod 755 /bin/cml
+
           dvc remote add data gdrive://1SSuE4GVQ5xjePujH0AGdXBVWXauanteG
           dvc remote add images gdrive://1iYyv9QR9NK7XXVaN4IzFAtQPgDWdYYlY
           dvc pull data
