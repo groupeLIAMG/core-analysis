@@ -4,7 +4,6 @@ from os.path import join
 from datetime import date
 
 TODAY = str(date.today()).replace("-", "_")
-BATCH_SIZE = 500
 IMAGE_DIR = "images"
 DATA_DIR = "data"
 PLOT_DIR = join(DATA_DIR, "plots")

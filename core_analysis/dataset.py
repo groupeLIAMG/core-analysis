@@ -16,7 +16,7 @@ from pycocotools.coco import COCO
 
 from core_analysis.architecture import Model
 from core_analysis.preprocess import unbox
-from core_analysis.utils.constants import BATCH_SIZE, IMAGE_DIR, DIM
+from core_analysis.utils.constants import IMAGE_DIR, DIM
 from core_analysis.utils.transform import augment
 from core_analysis.utils.visualize import plot_inputs
 from core_analysis.utils.processing import stored_property, saved_array_property
@@ -28,6 +28,7 @@ class Dataset(COCO):
     CAT_IDS = [1, 2, 3]
     CAT_NAMES = ["FRACTURES", "VEINS", "REALGAR"]
     VAL_PERCENT = 0.1
+    BATCH_SIZE = 16
 
     def __init__(self, label_path):
         super().__init__(label_path)

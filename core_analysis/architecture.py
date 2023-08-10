@@ -23,7 +23,7 @@ from core_analysis.utils.constants import (
 
 class Model:
     BACKBONE = "efficientnetb7"
-    BATCH_SIZE = 16
+    EPOCHS = 100
 
     def __init__(self, weights_filename=None):
         if weights_filename is not None:
@@ -62,13 +62,12 @@ class Model:
             min_delta=10e-4,
             patience=50,
         )
+        batch_size = train_dataset.BATCH_SIZE
+        steps_per_epoch = self.N_PATCHES // batch_size
+        val_steps_per_epoch = steps_per_epoch // 50
         history = self.model.fit(
-            X_train,
-            Y_train,
-            batch_size=self.BATCH_SIZE,
-            validation_data=(X_test, Y_test),
+            epochs=self.EPOCHS,
             callbacks=[checkpointer, early_stopping],
-            epochs=250,
         )
         return history
 
