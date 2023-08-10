@@ -60,7 +60,7 @@ def main(args):
 
         history = model.train(train_subset, val_subset)
 
-        Figure(f"graph_losses_{TODAY}", [Loss(history)])
+        Figure(filename=f"graph_losses_{TODAY}", subplots=[Loss(history)])
 
     if args.test:
         results = model.test(dataset.subset("test"))
@@ -68,16 +68,18 @@ def main(args):
         image = next(iter(dataset.subset("test").imgs.values()))
         pred = model.predict([image])
         Figure(
-            "predictions",
-            [
+            filename="predictions",
+            subplots=[
                 Image(image),
                 Mask(image.masks[..., 1]),
                 *(Mask(pred[..., i]) for i in range(3)),
             ],
         )
         Figure(
-            "predictions_with_images",
-            [Image(image.without_background(), mask=pred[..., i]) for i in range(3)],
+            filename="predictions_with_images",
+            subplots=[
+                Image(image.without_background(), mask=pred[..., i]) for i in range(3)
+            ],
         )
 
 
