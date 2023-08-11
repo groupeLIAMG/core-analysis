@@ -17,7 +17,7 @@ jobs:
           REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CML: https://github.com/iterative/cml/releases/latest/download/cml-linux-x64
         run: |
-          conda install dvc=2.10.2
+          conda install -c conda-forge dvc=2.10.2
 
           dvc remote add data gdrive://1SSuE4GVQ5xjePujH0AGdXBVWXauanteG
           dvc remote add images gdrive://1iYyv9QR9NK7XXVaN4IzFAtQPgDWdYYlY
