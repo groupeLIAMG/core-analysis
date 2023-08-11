@@ -2,16 +2,12 @@ name: model-testing
 on: [push]
 jobs:
   run:
-    runs-on: ubuntu-22.04
-    container:
-        image: python:3.7.16
-        env:
-          CML: https://github.com/iterative/cml/releases/latest/download/cml-linux-x64
+    runs-on: ubuntu-latest
     steps:
-      - uses: actions/setup-python@v4
+      - uses: conda-incubator/setup-miniconda@v2
         with:
-          python-version: '3.7.16'
-          cache: 'pip'
+          auto-update-conda: true
+          python-version: 3.7.16
       - uses: actions/setup-node@v3
         with:
           node-version: '16'
