@@ -8,8 +8,7 @@ jobs:
         with:
           auto-update-conda: true
           python-version: '3.7.16'
-          auto-activate-base: true
-          activate-environment: true
+          activate-environment: core-analysis
       - uses: actions/setup-node@v3
         with:
           node-version: '16'
