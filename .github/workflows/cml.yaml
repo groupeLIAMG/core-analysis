@@ -13,6 +13,10 @@ jobs:
         with:
           node-version: '16'
       - uses: iterative/setup-cml@v1
+      - name: Test Python version
+        shell: bash -el {0}
+        run: |
+          python -c "import sys; print(sys.executable)"
       - name: Train model
         env:
           REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
