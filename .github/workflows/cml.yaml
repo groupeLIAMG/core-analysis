@@ -11,7 +11,7 @@ jobs:
         with:
           miniforge-variant: Mambaforge
           auto-update-conda: true
-          python-version: '3.7.16'
+          python-version: '3.7'
           activate-environment: core-analysis
           use-only-tar-bz2: true
           use-mamba: true
