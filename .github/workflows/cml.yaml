@@ -21,8 +21,7 @@ jobs:
       - name: Set cache date
         run: echo "DATE=$(date +'%Y%m%d')" >> $GITHUB_ENV
 
-      - name: Cache conda
-        uses: actions/cache@v2
+      - uses: actions/cache@v2
         env:
           CACHE_NUMBER: 0
         with:
@@ -50,7 +49,7 @@ jobs:
           # dvc pull data
           # dvc pull images
 
-          conda develop .
+          pip install --no-build-isolation --no-deps -e .
           python core_analysis --train --test --do-augment
 
           cat metrics.txt >> report.md
