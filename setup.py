@@ -6,24 +6,21 @@ from setuptools import setup, find_packages
 with open("README.md", "r") as fh:
     long_description = fh.read()
 
-GITHUB_REQUIREMENT = "{name} @ git+https://github.com/{author}/{name}.git"
-REQUIREMENTS = [
-    "cython",
-    "segmentation-models",
-    "pydensecrf",
-    # GITHUB_REQUIREMENT.format(
-    #     author="berkeley-hipie",
-    #     name="HIPIE",
-    # ),
-    "imgaug",
-    "pycocotools",
-    "pillow",
-    "tensorflow==2.11.0",
-    "opencv-python",
-    "numpy",
-    "h5py",
-    "inflection",
-]
+dependencies = []
+with open("environment.yml", "r") as env_file:
+    is_dependencies_section = False
+    for line in env_file:
+        stripped_line = line.strip()
+        if stripped_line == "dependencies:":
+            is_dependencies_section = True
+        elif (
+            is_dependencies_section
+            and stripped_line
+            and not stripped_line.startswith("-")
+        ):
+            dependencies.append(stripped_line)
+        elif stripped_line and not stripped_line.startswith(" "):
+            is_dependencies_section = False
 
 setup(
     name="core-analysis",
@@ -35,7 +32,7 @@ setup(
     long_description_content_type="text/markdown",
     url="https://github.com/groupeLIAMG/core-analysis",
     packages=find_packages(),
-    install_requires=REQUIREMENTS,
+    install_requires=dependencies,
     setup_requires=["setuptools-git"],
     classifiers=[
         "Programming Language :: Python :: 3",

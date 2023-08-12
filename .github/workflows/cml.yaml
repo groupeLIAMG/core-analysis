@@ -41,7 +41,7 @@ jobs:
           dvc pull data
           dvc pull images
 
-          pip install -e .
+          conda develop .
           python core_analysis --train --test --do-augment
 
           cat metrics.txt >> report.md
