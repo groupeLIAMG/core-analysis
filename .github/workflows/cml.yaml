@@ -3,6 +3,9 @@ on: [push]
 jobs:
   run:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -el {0}
     steps:
       - uses: conda-incubator/setup-miniconda@v2
         with:
@@ -14,14 +17,12 @@ jobs:
           node-version: '16'
       - uses: iterative/setup-cml@v1
       - name: Test Python version
-        shell: bash -el {0}
         run: |
           python -c "import sys; print(sys.executable)"
       - name: Train model
         env:
           REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CML: https://github.com/iterative/cml/releases/latest/download/cml-linux-x64
-        shell: bash -el {0}
         run: |
           conda install -c conda-forge dvc=2.10.2
 
