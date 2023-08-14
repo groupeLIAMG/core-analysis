@@ -52,6 +52,7 @@ jobs:
           pip install --no-build-isolation --no-deps -e .
           python core_analysis --train --test --do-augment
 
-          cat metrics.txt >> report.md
-          echo "![](./plot.png)" >> report.md
+          for i in $(ls plots/*.png); do
+            echo "![]($i)" >> report.md;
+          done
           cml comment create report.md
