@@ -29,9 +29,9 @@ class Figure:
         )
         self.plot()
         self.format()
-        self.show()
         if self.filename is not None:
             self.save()
+        self.show()
 
     @property
     def filepath(self):
@@ -41,7 +41,7 @@ class Figure:
         with self.Metadata(gpus) as data:
             self.plot(data)
 
-    def save(self, show=True):
+    def save(self):
         self.fig.savefig(self.filepath, transparent=True, dpi=self.SAVE_DPI)
 
     def plot(self):
@@ -140,5 +140,4 @@ class Loss(Subplot):
 
 
 def turn_plot_off():
-    Figure.show = lambda *args, **kwargs: None
-    Figure.plot = lambda *args, **kwargs: None
+    Figure.show = lambda *args, **kwargs: plt.clf()
