@@ -3,7 +3,6 @@ channels:
   - conda-forge
 dependencies:
   - python=3.7.*
-  - conda-build
   - cython
   - segmentation-models
   - pydensecrf
@@ -15,5 +14,3 @@ dependencies:
   - numpy
   - h5py
   - inflection
-  - dvc=2.10.2
-  - fsspec=2022.11.0
