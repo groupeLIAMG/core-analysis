@@ -19,6 +19,7 @@ from core_analysis.utils.constants import (
     MODEL_FILENAME,
     LABELS_PATH,
     TODAY,
+    NEPTUNE_NAME,
     NEPTUNE_PROJECT,
     NEPTUNE_API_TOKEN,
 )
@@ -41,6 +42,7 @@ parser.add_argument("-e", "--run-eagerly", action="store_true")
 
 def main(args):
     run = neptune.init_run(
+        name=NEPTUNE_NAME,
         project=NEPTUNE_PROJECT,
         api_token=NEPTUNE_API_TOKEN,
     )
