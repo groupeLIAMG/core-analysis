@@ -8,6 +8,7 @@ NOW = str(datetime.now().strftime("%Y-%m-%d %H-%M-%S"))
 IMAGE_DIR = "images"
 DATA_DIR = "data"
 PLOT_DIR = join("plots", NOW)
+CACHE_DIR = "cache"
 MODEL_DIR = join(DATA_DIR, "models", "save_models")
 MODEL_FILENAME = "linknet_efficientnetb7_weights_2023_07_05.h5"
 MODEL_PATH = join(MODEL_DIR, MODEL_FILENAME)

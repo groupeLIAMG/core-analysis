@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
 
 from os import makedirs
-from os.path import split, exists, splitext
+from os.path import join, split, exists, splitext
 
 import numpy as np
 from matplotlib import pyplot as plt
 from h5py import File
+
+from core_analysis.utils.constants import CACHE_DIR
 
 
 class stored_property(property):
@@ -20,7 +22,7 @@ class saved_array_property:
     def __init__(self, fget=None):
         self.fget = fget
         self.filename = f"{fget.__name__}.h5"
-        self.archive = File(self.filename, "a")
+        self.archive = File(join(CACHE_DIR, self.filename), "a")
 
     def __get__(self, obj, objtype=None):
         key = obj.filename
