@@ -3,6 +3,7 @@
 *.json
 data
 images
+plots
 *.h5
 .neptune
 

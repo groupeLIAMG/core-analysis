@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
 
 from os.path import join
-from datetime import date
+from datetime import date, datetime
 
-TODAY = str(date.today()).replace("-", "_")
+TODAY = str(date.today())
+NOW = str(datetime.now().strftime("%Y-%m-%d %H-%M-%S"))
 IMAGE_DIR = "images"
 DATA_DIR = "data"
-PLOT_DIR = "plots"
+PLOT_DIR = join("plots", NOW)
 MODEL_DIR = join(DATA_DIR, "models", "save_models")
 MODEL_FILENAME = "linknet_efficientnetb7_weights_2023_07_05.h5"
 MODEL_PATH = join(MODEL_DIR, MODEL_FILENAME)

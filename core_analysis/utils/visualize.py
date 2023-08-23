@@ -42,7 +42,7 @@ class Figure:
             self.plot(data)
 
     def save(self):
-        self.fig.savefig(self.filepath, transparent=True, dpi=self.SAVE_DPI)
+        plt.savefig(self.filepath, transparent=True, dpi=self.SAVE_DPI)
 
     def plot(self):
         for subplot, ax in zip(self.subplots.flatten(), self.axs.flatten()):
