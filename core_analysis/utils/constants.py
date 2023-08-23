@@ -16,3 +16,9 @@ LABELS_PATH = join(LABELS_DIR, LABELS_FILENAME)
 LR = 1.5e-5
 DIM = (128, 128, 3)
 N_CLASSES = 3
+NEPTUNE_PROJECT = "liamg.neptune/core-analysis"
+NEPTUNE_API_TOKEN = (
+    "eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJh"
+    "cGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXki"
+    "OiJiMTRkMmIzMi1lYjdkLTQ0ZTUtYThhNS05YWE2MWU3NGJkNzAifQ=="
+)

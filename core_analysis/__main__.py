@@ -3,6 +3,7 @@
 from argparse import ArgumentParser
 
 import tensorflow as tf
+import neptune
 
 from core_analysis.dataset import Dataset
 from core_analysis.architecture import Model
@@ -13,8 +14,13 @@ from core_analysis.utils.visualize import (
     Mask,
     Loss,
 )
-from core_analysis.utils.constants import MODEL_FILENAME, LABELS_PATH, TODAY
-
+from core_analysis.utils.constants import (
+    MODEL_FILENAME,
+    LABELS_PATH,
+    TODAY,
+    NEPTUNE_PROJECT,
+    NEPTUNE_API_TOKEN,
+)
 
 # Check the number of available GPUs.
 print("Num GPUs Available: ", len(tf.config.list_physical_devices("GPU")))
@@ -22,7 +28,6 @@ physical_devices = tf.config.list_physical_devices("GPU")
 if len(physical_devices) > 0:
     for i in range(len(physical_devices)):
         tf.config.experimental.set_memory_growth(physical_devices[i], True)
-
 
 parser = ArgumentParser()
 parser.add_argument("--train", action="store_true")
@@ -34,6 +39,11 @@ parser.add_argument("-e", "--run-eagerly", action="store_true")
 
 
 def main(args):
+    run = neptune.init_run(
+        project=NEPTUNE_PROJECT,
+        api_token=NEPTUNE_API_TOKEN,
+    )
+
     if not args.plot:
         turn_plot_off()
 
@@ -82,6 +92,8 @@ def main(args):
                 Image(image.without_background(), mask=pred[..., i]) for i in range(3)
             ],
         )
+
+    run.stop()
 
 
 if __name__ == "__main__":

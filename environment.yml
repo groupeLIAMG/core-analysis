@@ -14,3 +14,4 @@ dependencies:
   - numpy
   - h5py
   - inflection
+  - neptune
