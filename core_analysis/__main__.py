@@ -47,6 +47,8 @@ def main(args):
         api_token=NEPTUNE_API_TOKEN,
     )
     report_figures(run)
+    for key, value in args.__dict__.items():
+        run[key] = value
 
     if not args.plot:
         turn_plot_off()
