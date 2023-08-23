@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 
-from os.path import join
+from os.path import join, splitext
 
 import numpy as np
 from matplotlib import patches
 from matplotlib import pyplot as plt
 
 from core_analysis.utils.transform import adjust_rgb
-from core_analysis.utils.constants import TODAY, PLOT_DIR
+from core_analysis.utils.constants import PLOT_DIR
 
 
 class Figure:
@@ -141,3 +141,13 @@ class Loss(Subplot):
 
 def turn_plot_off():
     Figure.show = lambda *args, **kwargs: plt.clf()
+
+
+def report_figures(run):
+    save_ = Figure.save
+
+    def save(self, *args, **kwargs):
+        save_(self, *args, **kwargs)
+        run[splitext(self.filename)[0]].upload(self.fig)
+
+    Figure.save = save

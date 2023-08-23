@@ -8,6 +8,7 @@ import neptune
 from core_analysis.dataset import Dataset
 from core_analysis.architecture import Model
 from core_analysis.utils.visualize import (
+    report_figures,
     turn_plot_off,
     Figure,
     Image,
@@ -43,6 +44,7 @@ def main(args):
         project=NEPTUNE_PROJECT,
         api_token=NEPTUNE_API_TOKEN,
     )
+    report_figures(run)
 
     if not args.plot:
         turn_plot_off()
