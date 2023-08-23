@@ -3,7 +3,7 @@
 from os.path import join
 import cv2
 import numpy as np
-from tensorflow.keras.saving import load_model
+from tensorflow.keras.models import load_model
 
 from core_analysis.postprocess import predict_tiles
 from core_analysis.utils.transform import undersample, upsample

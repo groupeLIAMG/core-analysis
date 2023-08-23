@@ -7,7 +7,6 @@ os.environ["SM_FRAMEWORK"] = "tf.keras"
 
 import numpy as np
 import tensorflow as tf
-from keras import callback
 import segmentation_models as sm
 
 from core_analysis.postprocess import predict_tiles
@@ -52,7 +51,7 @@ class Model:
 
     def train(self, train_dataset, val_dataset):
         checkpoint_filename = f"linknet_{self.BACKBONE}_weights_{TODAY}.h5"
-        checkpointer = callbacks.ModelCheckpoint(
+        checkpointer = tf.keras.callbacks.ModelCheckpoint(
             filepath=join(MODEL_DIR, checkpoint_filename),
             monitor="loss",
             verbose=1,
