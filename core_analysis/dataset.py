@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+"""Load and manage data."""
+
 import os
 from os.path import join, split
 from copy import copy

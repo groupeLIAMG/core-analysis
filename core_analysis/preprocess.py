@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+"""Preprocess the data prior to training (e.g. detecting background)."""
+
 from os.path import join
 import cv2
 import numpy as np

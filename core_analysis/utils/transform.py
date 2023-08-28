@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+"""Geometrical and data augmentation utilities."""
+
 import numpy as np
 from scipy.interpolate import griddata
 from imgaug.augmenters import (

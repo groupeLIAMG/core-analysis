@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+"""Default figure format and general Pyplot utilities."""
+
 from matplotlib import pyplot as plt
 from matplotlib.ticker import AutoLocator
 from matplotlib.legend_handler import HandlerTuple

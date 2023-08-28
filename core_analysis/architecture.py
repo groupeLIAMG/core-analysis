@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+"""Define model and hyperparameters."""
+
 import os
 from os.path import join
 

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 
-from tabnanny import verbose
+"""Split data into tiles and merge them back."""
+
 import cv2
 import numpy as np
 from tqdm import tqdm
@@ -84,7 +85,6 @@ class predict_tiles:
 
         self.batches = batch
         self.num = n
-        del batch
 
         if self.reflect:
             self.num = n + m + j + k
@@ -105,7 +105,6 @@ class predict_tiles:
 
         self.results = np.concatenate(results)
         del self.batches
-        del results
 
     def reconstruct(self, results):
         # reserve memory

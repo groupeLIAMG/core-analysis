@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+"""Ease data management."""
+
 from os import makedirs
 from os.path import join, split, exists, splitext
 

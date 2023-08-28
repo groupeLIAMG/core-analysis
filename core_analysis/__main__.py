@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
 
+"""Core analysis by deep learning.
+
+Exploring the capabilities of *Transformer*-based neural network
+"""
+
 from argparse import ArgumentParser
 
 import tensorflow as tf

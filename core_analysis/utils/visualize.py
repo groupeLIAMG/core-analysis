@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+"""Plot results in an unified way."""
+
 from os.path import join, splitext
 
 import numpy as np
